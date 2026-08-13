@@ -15,6 +15,7 @@ export interface RoomState {
     turnTime: number;
     imposterCount: number;
     showImposterHint: boolean;
+    selectedCategories: string[];
   };
   currentGame: {
     category: string;
@@ -65,6 +66,8 @@ class GameManager {
       joinedAt: new Date()
     };
 
+    const allSeedCategoryNames = SEED_DATA.map(c => c.category);
+
     const roomState: RoomState = {
       code,
       adminSocketId: socketId,
@@ -75,7 +78,8 @@ class GameManager {
         maxPlayers: 8,
         turnTime: 20,
         imposterCount: 1,
-        showImposterHint: false
+        showImposterHint: false,
+        selectedCategories: allSeedCategoryNames
       },
       currentGame: null,
       customWords: [],
@@ -205,6 +209,12 @@ class GameManager {
     if (!cleanWord || !cleanCategory) return { error: 'Word and Category are required' };
 
     room.customWords.push({ word: cleanWord, category: cleanCategory });
+
+    // Also auto-add custom category to host selectedCategories if not present
+    if (!room.settings.selectedCategories.includes(cleanCategory)) {
+      room.settings.selectedCategories.push(cleanCategory);
+    }
+
     this.saveWordToDb(cleanWord, cleanCategory, roomCode);
     return { room };
   }
@@ -222,8 +232,17 @@ class GameManager {
       allCategoriesMap.set(cw.category, existing);
     });
 
-    const categoryNames = Array.from(allCategoriesMap.keys());
-    const selectedCategory = categoryNames[Math.floor(Math.random() * categoryNames.length)];
+    let availableCategoryNames = Array.from(allCategoriesMap.keys());
+
+    // Filter by selectedCategories if specified by host
+    if (room.settings.selectedCategories && room.settings.selectedCategories.length > 0) {
+      const filtered = availableCategoryNames.filter(catName => room.settings.selectedCategories.includes(catName));
+      if (filtered.length > 0) {
+        availableCategoryNames = filtered;
+      }
+    }
+
+    const selectedCategory = availableCategoryNames[Math.floor(Math.random() * availableCategoryNames.length)];
     const wordList = allCategoriesMap.get(selectedCategory) || ["Elephant"];
 
     const realWordIndex = Math.floor(Math.random() * wordList.length);
@@ -248,7 +267,6 @@ class GameManager {
     if (!room) return { error: 'Room not found' };
     if (room.adminSocketId !== adminSocketId) return { error: 'Only admin can start the game' };
     
-    // Per requirement: minimum 3 players needed to start room
     const connectedPlayers = room.players.filter(p => p.isConnected);
     if (connectedPlayers.length < 3) {
       return { error: 'Need at least 3 players to start the game!' };
@@ -266,7 +284,6 @@ class GameManager {
     const imposterWord = room.settings.showImposterHint ? decoyWord : "???";
     const imposterHint = room.settings.showImposterHint ? `Hint: Decoy word is "${decoyWord}"` : undefined;
 
-    // Turn order
     const turnOrderPlayerIds = connectedPlayers.map(p => p.playerId);
     const currentTurnPlayerId = turnOrderPlayerIds[0] || "";
 
@@ -305,7 +322,6 @@ class GameManager {
     const player = room.players.find(p => p.playerId === playerId);
     const playerName = player ? player.name : 'Player';
 
-    // Record clue
     game.clues.push({
       playerId,
       playerName,
@@ -313,7 +329,6 @@ class GameManager {
       submittedAt: new Date()
     });
 
-    // Advance to next turn
     const currentIndex = game.turnOrderPlayerIds.indexOf(playerId);
     const nextIndex = currentIndex + 1;
 
@@ -323,10 +338,9 @@ class GameManager {
       game.currentTurnPlayerId = game.turnOrderPlayerIds[nextIndex];
       game.turnTimeLeft = room.settings.turnTime || 20;
     } else {
-      // All players completed turns -> transition to voting phase
       game.phase = 'voting';
       game.currentTurnPlayerId = "";
-      game.turnTimeLeft = 60; // 60 seconds voting duration
+      game.turnTimeLeft = 60;
       phaseChanged = true;
     }
 
@@ -342,7 +356,6 @@ class GameManager {
     const currentId = game.currentTurnPlayerId;
     const player = room.players.find(p => p.playerId === currentId);
 
-    // Record timeout pass clue
     game.clues.push({
       playerId: currentId,
       playerName: player ? player.name : 'Player',
@@ -377,7 +390,6 @@ class GameManager {
     const targetPlayer = room.players.find(p => p.playerId === targetPlayerId);
     if (!targetPlayer) return { error: 'Target player not found' };
 
-    // Record or update vote instantly (players can change vote anytime!)
     const existingVoteIndex = room.currentGame.votes.findIndex(v => v.voterPlayerId === voterPlayerId);
     const voteData: IVote = {
       voterSocketId,
@@ -510,7 +522,7 @@ class GameManager {
         { upsert: true, new: true }
       );
     } catch (e) {
-      // Ignore DB errors if offline
+      // Ignore DB errors
     }
   }
 

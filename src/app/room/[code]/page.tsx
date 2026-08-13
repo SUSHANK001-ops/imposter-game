@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
 import { 
   Ghost, Copy, Check, Play, Settings, BookOpen, Clock, 
-  Eye, EyeOff, Shield, ShieldAlert, Award, RotateCcw, LogOut, Flame, Send, MessageSquare
+  Eye, EyeOff, ShieldAlert, Award, RotateCcw, LogOut, Flame, Send, MessageSquare
 } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
 import { getPlayerId, getSavedName } from '@/lib/playerIdentity';
@@ -60,7 +60,6 @@ export default function RoomPage() {
     socket.on('room:updated', (updatedRoom: any) => {
       setRoom(updatedRoom);
 
-      // Find current player's vote if active
       if (updatedRoom.currentGame?.votes) {
         const myVote = updatedRoom.currentGame.votes.find((v: any) => v.voterPlayerId === playerId);
         if (myVote) {
@@ -195,7 +194,7 @@ export default function RoomPage() {
   if (!room) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <Ghost className="w-12 h-12 text-purple-500 animate-bounce mb-4" />
+        <Ghost className="w-12 h-12 text-blue-500 animate-bounce mb-4" />
         <h2 className="text-xl font-bold text-white mb-2">Connecting to Room {roomCode}...</h2>
         <p className="text-slate-400 text-sm">{errorMsg || 'Synchronizing multiplayer state...'}</p>
       </div>
@@ -219,11 +218,11 @@ export default function RoomPage() {
       />
 
       {/* Header Bar */}
-      <header className="glass-panel rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 border border-purple-900/40">
+      <header className="glass-panel rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 border border-blue-900/40">
         <div className="flex items-center gap-3">
           <div
             onClick={() => router.push('/')}
-            className="w-10 h-10 rounded-xl bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-purple-300 cursor-pointer hover:bg-purple-600/50 transition-colors"
+            className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-300 cursor-pointer hover:bg-blue-600/50 transition-colors"
           >
             <Ghost className="w-5 h-5" />
           </div>
@@ -232,20 +231,20 @@ export default function RoomPage() {
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">ROOM CODE</span>
               <button
                 onClick={copyRoomCode}
-                className="flex items-center gap-1 bg-purple-950/80 border border-purple-800/50 hover:border-purple-500 px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold text-purple-200 transition-colors"
+                className="flex items-center gap-1 bg-slate-900 border border-blue-800/60 hover:border-blue-500 px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold text-blue-200 transition-colors"
               >
                 <span>{roomCode}</span>
-                {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-purple-400" />}
+                {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-blue-400" />}
               </button>
             </div>
-            <p className="text-[11px] text-slate-400">Connected as <strong className="text-purple-300">{playerName}</strong></p>
+            <p className="text-[11px] text-slate-400">Connected as <strong className="text-blue-300">{playerName}</strong></p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           {room.currentGame && (
-            <div className="flex items-center gap-2 bg-slate-900/80 border border-purple-900/60 px-4 py-2 rounded-xl">
-              <Clock className="w-4 h-4 text-purple-400 animate-pulse" />
+            <div className="flex items-center gap-2 bg-slate-900/90 border border-blue-900/60 px-4 py-2 rounded-xl">
+              <Clock className="w-4 h-4 text-blue-400 animate-pulse" />
               <span className="text-xs font-medium text-slate-300 uppercase">{room.currentGame.phase}:</span>
               <span className="text-sm font-mono font-bold text-amber-400">
                 {room.currentGame.turnTimeLeft || 0}s
@@ -255,7 +254,7 @@ export default function RoomPage() {
 
           <button
             onClick={() => router.push('/')}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white bg-slate-900/60 border border-slate-800 px-3 py-2 rounded-xl transition-colors"
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white bg-slate-900 border border-slate-800 px-3 py-2 rounded-xl transition-colors"
           >
             <LogOut className="w-4 h-4" />
             <span>Leave</span>
@@ -274,32 +273,32 @@ export default function RoomPage() {
         
         {/* LOBBY PHASE VIEW */}
         {room.status === 'waiting' && (
-          <div className="glass-panel rounded-2xl p-6 border border-purple-900/40 space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-purple-950">
+          <div className="glass-panel rounded-2xl p-6 border border-blue-900/40 space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
               <div>
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   Lobby Waiting Area
-                  <span className="text-xs font-normal bg-purple-900/50 text-purple-300 border border-purple-700/40 px-2.5 py-0.5 rounded-full">
+                  <span className="text-xs font-normal bg-blue-900/40 text-blue-300 border border-blue-700/40 px-2.5 py-0.5 rounded-full">
                     {connectedPlayers.length} / {room.settings.maxPlayers} Players (Min 3 to start)
                   </span>
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">Share room code <strong className="text-purple-300">{roomCode}</strong> with friends to join.</p>
+                <p className="text-xs text-slate-400 mt-1">Share room code <strong className="text-blue-300">{roomCode}</strong> with friends to join.</p>
               </div>
 
               {isHost && (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setIsSettingsOpen(true)}
-                    className="flex items-center gap-1.5 text-xs bg-slate-900 hover:bg-slate-800 border border-purple-900/60 text-purple-200 px-3 py-2 rounded-xl transition-all"
+                    className="flex items-center gap-1.5 text-xs bg-slate-900 hover:bg-slate-800 border border-blue-900/60 text-blue-200 px-3 py-2 rounded-xl transition-all"
                   >
-                    <Settings className="w-4 h-4 text-purple-400" />
+                    <Settings className="w-4 h-4 text-blue-400" />
                     <span>Settings</span>
                   </button>
                   <button
                     onClick={() => setIsWordBankOpen(true)}
-                    className="flex items-center gap-1.5 text-xs bg-slate-900 hover:bg-slate-800 border border-purple-900/60 text-purple-200 px-3 py-2 rounded-xl transition-all"
+                    className="flex items-center gap-1.5 text-xs bg-slate-900 hover:bg-slate-800 border border-blue-900/60 text-blue-200 px-3 py-2 rounded-xl transition-all"
                   >
-                    <BookOpen className="w-4 h-4 text-purple-400" />
+                    <BookOpen className="w-4 h-4 text-blue-400" />
                     <span>Word Bank</span>
                   </button>
                 </div>
@@ -321,12 +320,12 @@ export default function RoomPage() {
             </div>
 
             {/* Lobby Footer Action */}
-            <div className="pt-4 border-t border-purple-950 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="text-xs text-slate-400">
                 {connectedPlayers.length < 3 ? (
                   <span className="text-amber-400 font-medium">Need at least 3 players to start the game ({connectedPlayers.length}/3).</span>
                 ) : isHost ? (
-                  <span className="text-purple-300 font-medium">As Host, click Start Game when everyone is ready.</span>
+                  <span className="text-blue-300 font-medium">As Host, click Start Game when everyone is ready.</span>
                 ) : (
                   <span>Waiting for Host to start the round...</span>
                 )}
@@ -336,7 +335,7 @@ export default function RoomPage() {
                 <button
                   onClick={handleStartGame}
                   disabled={connectedPlayers.length < 3}
-                  className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 text-white font-bold px-8 py-3.5 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-95"
+                  className="w-full sm:w-auto bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 disabled:opacity-40 text-white font-bold px-8 py-3.5 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-95"
                 >
                   <Play className="w-5 h-5 fill-white" />
                   <span>Start Game Round</span>
@@ -348,19 +347,19 @@ export default function RoomPage() {
 
         {/* PLAYING PHASE VIEW (TURN CLUES & VOTING) */}
         {room.status === 'playing' && secretData && (
-          <div className="glass-panel rounded-2xl p-6 border border-purple-900/40 space-y-6">
+          <div className="glass-panel rounded-2xl p-6 border border-blue-900/40 space-y-6">
             
             {/* Secret Word & Role Card */}
             <div className={`p-6 rounded-2xl border transition-all relative overflow-hidden ${
               secretData.role === 'IMPOSTER'
-                ? 'bg-gradient-to-br from-red-950/60 via-slate-950 to-slate-950 border-red-900/60 neon-border-red'
-                : 'bg-gradient-to-br from-blue-950/60 via-slate-950 to-slate-950 border-blue-900/60 neon-border-blue'
+                ? 'bg-gradient-to-br from-red-950/70 via-slate-950 to-slate-950 border-red-900/60 neon-border-red'
+                : 'bg-gradient-to-br from-blue-950/70 via-slate-950 to-slate-950 border-blue-900/60 neon-border-blue'
             }`}>
               <button
                 onClick={() => setIsWordHidden(!isWordHidden)}
                 className="absolute top-4 right-4 text-xs text-slate-400 hover:text-white bg-slate-900/80 border border-slate-700/60 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors z-10"
               >
-                {isWordHidden ? <Eye className="w-4 h-4 text-purple-400" /> : <EyeOff className="w-4 h-4 text-purple-400" />}
+                {isWordHidden ? <Eye className="w-4 h-4 text-blue-400" /> : <EyeOff className="w-4 h-4 text-blue-400" />}
                 <span>{isWordHidden ? 'Peek Secret' : 'Hide Screen'}</span>
               </button>
 
@@ -372,7 +371,7 @@ export default function RoomPage() {
                 }`}>
                   YOUR ROLE: {secretData.role}
                 </span>
-                <span className="text-xs bg-slate-900/80 text-purple-300 border border-purple-800/40 px-3 py-1 rounded-full">
+                <span className="text-xs bg-slate-900/80 text-blue-300 border border-blue-800/40 px-3 py-1 rounded-full">
                   Category: <strong>{secretData.category}</strong>
                 </span>
               </div>
@@ -399,15 +398,15 @@ export default function RoomPage() {
 
             {/* TURN CLUE SUBMISSION BANNER & FORM */}
             {room.currentGame?.phase === 'discussing' && (
-              <div className="bg-slate-950/80 border border-purple-900/60 p-4 rounded-2xl space-y-3">
+              <div className="bg-slate-950/80 border border-blue-900/60 p-4 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
-                    <MessageSquare className="w-5 h-5 text-amber-400 animate-pulse" />
+                    <MessageSquare className="w-5 h-5 text-red-400 animate-pulse" />
                     <h3 className="text-sm font-bold text-white">
-                      Turn Clue Round: <span className="text-amber-300">{currentTurnPlayer ? currentTurnPlayer.name : 'Player'}&apos;s Turn</span>
+                      Turn Clue Round: <span className="text-red-400">{currentTurnPlayer ? currentTurnPlayer.name : 'Player'}&apos;s Turn</span>
                     </h3>
                   </div>
-                  <span className="text-xs font-mono font-bold text-purple-300 bg-purple-950/80 border border-purple-800 px-3 py-1 rounded-full">
+                  <span className="text-xs font-mono font-bold text-blue-300 bg-blue-950/80 border border-blue-800 px-3 py-1 rounded-full">
                     {room.currentGame?.turnTimeLeft || 20}s Remaining
                   </span>
                 </div>
@@ -419,13 +418,13 @@ export default function RoomPage() {
                       value={clueInput}
                       onChange={(e) => setClueInput(e.target.value)}
                       placeholder="Type a 1-word or short clue describing the secret word..."
-                      className="flex-1 bg-slate-900 border border-purple-700/80 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                      className="flex-1 bg-slate-900 border border-blue-700/80 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
                       autoFocus
                     />
                     <button
                       type="submit"
                       disabled={submittingClue || !clueInput.trim()}
-                      className="bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-bold px-5 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg"
+                      className="bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold px-5 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg shrink-0"
                     >
                       <Send className="w-4 h-4" />
                       <span>Submit Word</span>
@@ -485,27 +484,27 @@ export default function RoomPage() {
 
         {/* RESULTS PHASE VIEW */}
         {room.status === 'ended' && room.currentGame && (
-          <div className="glass-panel rounded-2xl p-6 border border-purple-900/40 space-y-6">
+          <div className="glass-panel rounded-2xl p-6 border border-blue-900/40 space-y-6">
             <div className={`p-6 rounded-2xl text-center border shadow-2xl ${
               room.currentGame.winner === 'crew'
                 ? 'bg-gradient-to-br from-blue-950 via-slate-950 to-slate-950 border-blue-500/60 neon-border-blue'
                 : room.currentGame.winner === 'imposter'
                 ? 'bg-gradient-to-br from-red-950 via-slate-950 to-slate-950 border-red-500/60 neon-border-red'
-                : 'bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 border-purple-800'
+                : 'bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 border-slate-700'
             }`}>
               <Award className="w-12 h-12 mx-auto mb-2 text-amber-400 animate-bounce" />
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
                 {room.currentGame.winnerText}
               </h2>
-              <div className="mt-4 inline-flex items-center gap-3 bg-slate-900/80 border border-purple-800/50 px-4 py-2 rounded-xl text-xs">
+              <div className="mt-4 inline-flex items-center gap-3 bg-slate-900/90 border border-blue-800/50 px-4 py-2 rounded-xl text-xs">
                 <span className="text-slate-400">Secret Word was:</span>
-                <strong className="text-purple-300 font-bold text-sm">{room.currentGame.realWord}</strong>
+                <strong className="text-blue-300 font-bold text-sm">{room.currentGame.realWord}</strong>
               </div>
             </div>
 
             {/* Scoreboard */}
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-3 flex items-center gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-3 flex items-center gap-2">
                 <Flame className="w-4 h-4 text-amber-400" /> Room Scoreboard
               </h3>
               <div className="space-y-2">
@@ -516,9 +515,9 @@ export default function RoomPage() {
                     const playerClue = room.currentGame?.clues?.find((c: any) => c.playerId === p.playerId);
 
                     return (
-                      <div key={p.playerId} className="flex flex-wrap items-center justify-between bg-slate-950/60 border border-purple-950 p-3 rounded-xl gap-2">
+                      <div key={p.playerId} className="flex flex-wrap items-center justify-between bg-slate-950/70 border border-slate-800 p-3 rounded-xl gap-2">
                         <div className="flex items-center gap-3">
-                          <span className="text-xs font-mono font-bold text-purple-400 w-5">#{idx + 1}</span>
+                          <span className="text-xs font-mono font-bold text-blue-400 w-5">#{idx + 1}</span>
                           <span className="text-sm font-semibold text-white">{p.name}</span>
                           {isImposter && (
                             <span className="text-[10px] bg-red-950 text-red-300 border border-red-800 px-2 py-0.5 rounded-full font-bold">
@@ -529,7 +528,7 @@ export default function RoomPage() {
 
                         <div className="flex items-center gap-4">
                           {playerClue && (
-                            <span className="text-xs text-amber-300 bg-purple-950/60 border border-purple-800/40 px-2.5 py-1 rounded-lg">
+                            <span className="text-xs text-blue-300 bg-blue-950/60 border border-blue-800/40 px-2.5 py-1 rounded-lg">
                               Clue: &ldquo;{playerClue.text}&rdquo;
                             </span>
                           )}
@@ -542,7 +541,7 @@ export default function RoomPage() {
             </div>
 
             {/* Results Action Footer */}
-            <div className="pt-4 border-t border-purple-950 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
               <button
                 onClick={() => router.push('/')}
                 className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs px-5 py-3 rounded-xl border border-slate-700 transition-colors"
@@ -553,7 +552,7 @@ export default function RoomPage() {
               {isHost && (
                 <button
                   onClick={handlePlayAgain}
-                  className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold px-8 py-3.5 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-95"
+                  className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-bold px-8 py-3.5 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-95"
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>Play Again (Same Room)</span>

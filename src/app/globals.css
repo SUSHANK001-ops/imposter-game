@@ -3,8 +3,8 @@
 @import "tailwindcss/utilities";
 
 :root {
-  --background: #090614;
-  --foreground: #f3f4f6;
+  --background: #070d1e;
+  --foreground: #f8fafc;
 }
 
 body {
@@ -21,41 +21,37 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(10, 18, 40, 0.8);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.4);
+  background: rgba(37, 99, 235, 0.5);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.7);
+  background: rgba(37, 99, 235, 0.8);
 }
 
-/* Radial ambient glowing backgrounds */
+/* Clean Navy Background Radial Accent */
 .bg-radial-glow {
-  background: radial-gradient(circle at 50% 0%, rgba(124, 58, 237, 0.25) 0%, rgba(76, 29, 149, 0.1) 40%, rgba(9, 6, 20, 1) 100%);
+  background: radial-gradient(circle at 50% 0%, rgba(29, 78, 216, 0.2) 0%, rgba(15, 23, 42, 0.8) 50%, rgba(7, 13, 30, 1) 100%);
 }
 
 .glass-panel {
-  background: rgba(22, 17, 43, 0.65);
+  background: rgba(13, 23, 48, 0.75);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  border: 1px solid rgba(30, 58, 138, 0.3);
 }
 
 .glass-card {
-  background: rgba(30, 23, 59, 0.5);
+  background: rgba(18, 32, 64, 0.6);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(167, 139, 250, 0.15);
-}
-
-.neon-border-purple {
-  box-shadow: 0 0 20px rgba(139, 92, 246, 0.35);
-}
-
-.neon-border-red {
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+  border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .neon-border-blue {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.35);
+}
+
+.neon-border-red {
+  box-shadow: 0 0 20px rgba(220, 38, 38, 0.4);
 }

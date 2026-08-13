@@ -48,6 +48,7 @@ export interface IRoomSettings {
   turnTime: number; // Seconds per turn (default 20)
   imposterCount: number; // Default 1
   showImposterHint: boolean; // Imposter hint feature toggle
+  selectedCategories: string[]; // Multi-category selection
 }
 
 export interface IRoom extends Document {
@@ -109,7 +110,8 @@ const RoomSettingsSchema = new Schema<IRoomSettings>({
   maxPlayers: { type: Number, default: 8, min: 3, max: 12 },
   turnTime: { type: Number, default: 20, min: 10, max: 60 },
   imposterCount: { type: Number, default: 1, min: 1, max: 3 },
-  showImposterHint: { type: Boolean, default: false }
+  showImposterHint: { type: Boolean, default: false },
+  selectedCategories: [{ type: String }]
 });
 
 const RoomSchema = new Schema<IRoom>({
