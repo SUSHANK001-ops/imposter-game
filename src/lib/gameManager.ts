@@ -498,6 +498,8 @@ class GameManager {
       return {
         room,
         gameContinued: true,
+        announcementText: `Incorrect! ${votedOutName} was NOT the Imposter! The Imposter is still among us — starting Next Clue Round!`
+      };
     }
   }
 
