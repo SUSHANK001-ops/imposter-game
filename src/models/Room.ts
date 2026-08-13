@@ -17,6 +17,13 @@ export interface IVote {
   targetPlayerId: string;
 }
 
+export interface IClue {
+  playerId: string;
+  playerName: string;
+  text: string;
+  submittedAt: Date;
+}
+
 export interface IGameSession {
   category: string;
   realWord: string;
@@ -25,6 +32,10 @@ export interface IGameSession {
   imposterPlayerIds: string[];
   phase: 'discussing' | 'voting' | 'results';
   votes: IVote[];
+  clues: IClue[];
+  currentTurnPlayerId: string;
+  turnTimeLeft: number;
+  turnOrderPlayerIds: string[];
   startedAt: Date;
   endedAt?: Date;
   winner?: 'crew' | 'imposter' | 'tie';
@@ -34,7 +45,7 @@ export interface IGameSession {
 
 export interface IRoomSettings {
   maxPlayers: number;
-  discussionTime: number; // Seconds (default 180)
+  turnTime: number; // Seconds per turn (default 20)
   imposterCount: number; // Default 1
   showImposterHint: boolean; // Imposter hint feature toggle
 }
@@ -68,6 +79,13 @@ const VoteSchema = new Schema<IVote>({
   targetPlayerId: { type: String, required: true }
 });
 
+const ClueSchema = new Schema<IClue>({
+  playerId: { type: String, required: true },
+  playerName: { type: String, required: true },
+  text: { type: String, required: true },
+  submittedAt: { type: Date, default: Date.now }
+});
+
 const GameSessionSchema = new Schema<IGameSession>({
   category: { type: String, required: true },
   realWord: { type: String, required: true },
@@ -76,6 +94,10 @@ const GameSessionSchema = new Schema<IGameSession>({
   imposterPlayerIds: [{ type: String }],
   phase: { type: String, enum: ['discussing', 'voting', 'results'], default: 'discussing' },
   votes: [VoteSchema],
+  clues: [ClueSchema],
+  currentTurnPlayerId: { type: String, default: "" },
+  turnTimeLeft: { type: Number, default: 20 },
+  turnOrderPlayerIds: [{ type: String }],
   startedAt: { type: Date, default: Date.now },
   endedAt: { type: Date },
   winner: { type: String, enum: ['crew', 'imposter', 'tie'] },
@@ -85,7 +107,7 @@ const GameSessionSchema = new Schema<IGameSession>({
 
 const RoomSettingsSchema = new Schema<IRoomSettings>({
   maxPlayers: { type: Number, default: 8, min: 3, max: 12 },
-  discussionTime: { type: Number, default: 180, min: 30, max: 600 },
+  turnTime: { type: Number, default: 20, min: 10, max: 60 },
   imposterCount: { type: Number, default: 1, min: 1, max: 3 },
   showImposterHint: { type: Boolean, default: false }
 });

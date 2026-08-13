@@ -10,7 +10,7 @@ interface SettingsModalProps {
   roomCode: string;
   currentSettings: {
     maxPlayers: number;
-    discussionTime: number;
+    turnTime: number;
     imposterCount: number;
     showImposterHint: boolean;
   };
@@ -22,7 +22,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   roomCode,
   currentSettings
 }) => {
-  const [discussionTime, setDiscussionTime] = useState(currentSettings.discussionTime || 180);
+  const [turnTime, setTurnTime] = useState(currentSettings.turnTime || 20);
   const [maxPlayers, setMaxPlayers] = useState(currentSettings.maxPlayers || 8);
   const [showImposterHint, setShowImposterHint] = useState(currentSettings.showImposterHint || false);
 
@@ -35,7 +35,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     socket.emit('room:settingsUpdate', {
       roomCode,
       settings: {
-        discussionTime: Number(discussionTime),
+        turnTime: Number(turnTime),
         maxPlayers: Number(maxPlayers),
         showImposterHint
       }
@@ -62,30 +62,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
           <div>
             <h2 className="text-lg font-bold text-white">Room Settings</h2>
-            <p className="text-xs text-slate-400">Customize discussion timer & gameplay rules.</p>
+            <p className="text-xs text-slate-400">Customize turn time & gameplay rules.</p>
           </div>
         </div>
 
         <form onSubmit={handleSave} className="space-y-5">
-          {/* Discussion Time */}
+          {/* Turn Time (Seconds per player) */}
           <div>
             <label className="text-xs font-medium text-purple-300 mb-1.5 flex items-center gap-2">
               <Clock className="w-4 h-4 text-purple-400" />
-              <span>Discussion Phase Timer</span>
+              <span>Turn Time (Seconds per player to give clue)</span>
             </label>
             <div className="grid grid-cols-4 gap-2">
-              {[60, 120, 180, 300].map((seconds) => (
+              {[10, 15, 20, 30].map((seconds) => (
                 <button
                   type="button"
                   key={seconds}
-                  onClick={() => setDiscussionTime(seconds)}
+                  onClick={() => setTurnTime(seconds)}
                   className={`py-2 text-xs font-semibold rounded-xl border transition-all ${
-                    discussionTime === seconds
+                    turnTime === seconds
                       ? 'bg-purple-600 border-purple-400 text-white shadow-lg'
                       : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-purple-800'
                   }`}
                 >
-                  {seconds / 60}m ({seconds}s)
+                  {seconds}s
                 </button>
               ))}
             </div>

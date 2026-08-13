@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import next from 'next';
-import { gameManager, RoomState } from './src/lib/gameManager';
+import { gameManager } from './src/lib/gameManager';
 import { connectToDatabase } from './src/lib/mongodb';
 
 const dev = process.env.NODE_ENV !== 'production';
@@ -10,11 +10,9 @@ const port = parseInt(process.env.PORT || '3000', 10);
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
-// Timer ticker map per room
 const activeTimers: Map<string, NodeJS.Timeout> = new Map();
 
 app.prepare().then(async () => {
-  // Try connecting to DB if configured
   await connectToDatabase().catch(() => {
     console.log('Running server with in-memory state engine.');
   });
@@ -44,22 +42,16 @@ app.prepare().then(async () => {
         category: room.currentGame.category,
         phase: room.currentGame.phase,
         votes: room.currentGame.votes,
+        clues: room.currentGame.clues,
+        currentTurnPlayerId: room.currentGame.currentTurnPlayerId,
+        turnTimeLeft: room.currentGame.turnTimeLeft,
+        turnOrderPlayerIds: room.currentGame.turnOrderPlayerIds,
         startedAt: room.currentGame.startedAt,
-        timeLeft: room.currentGame.timeLeft,
         winner: room.currentGame.winner,
         winnerText: room.currentGame.winnerText
       } : null,
       customWordsCount: room.customWords.length
     });
-
-    if (systemMessage) {
-      io.to(roomCode).emit('chat:message', {
-        sender: 'SYSTEM',
-        message: systemMessage,
-        isSystem: true,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      });
-    }
   }
 
   function startRoomTimer(roomCode: string) {
@@ -77,23 +69,31 @@ app.prepare().then(async () => {
       }
 
       const game = room.currentGame;
-      if (game.phase === 'discussing') {
-        game.timeLeft -= 1;
-        io.to(roomCode).emit('game:timerTick', { phase: 'discussing', timeLeft: game.timeLeft });
 
-        if (game.timeLeft <= 0) {
-          // Transition automatically to voting phase
-          game.phase = 'voting';
-          game.timeLeft = 60; // 60 seconds voting window
-          io.to(roomCode).emit('game:phaseChanged', { phase: 'voting', timer: 60 });
-          broadcastRoomUpdate(roomCode, '⏰ Discussion time is up! Transitioning to Voting phase. Cast your votes!');
+      if (game.phase === 'discussing') {
+        game.turnTimeLeft -= 1;
+        io.to(roomCode).emit('game:timerTick', { 
+          phase: 'discussing', 
+          turnTimeLeft: game.turnTimeLeft,
+          currentTurnPlayerId: game.currentTurnPlayerId 
+        });
+
+        if (game.turnTimeLeft <= 0) {
+          // Current player's turn time expired -> auto advance to next turn
+          const { room: updatedRoom, phaseChanged } = gameManager.nextTurnTimeout(roomCode);
+          if (updatedRoom) {
+            broadcastRoomUpdate(roomCode);
+            if (phaseChanged) {
+              io.to(roomCode).emit('game:phaseChanged', { phase: 'voting', timer: 60 });
+            }
+          }
         }
       } else if (game.phase === 'voting') {
-        game.timeLeft -= 1;
-        io.to(roomCode).emit('game:timerTick', { phase: 'voting', timeLeft: game.timeLeft });
+        game.turnTimeLeft -= 1;
+        io.to(roomCode).emit('game:timerTick', { phase: 'voting', turnTimeLeft: game.turnTimeLeft });
 
-        if (game.timeLeft <= 0) {
-          // Time expired for voting -> evaluate results
+        if (game.turnTimeLeft <= 0) {
+          // Voting timer expired -> evaluate results
           clearInterval(timer);
           activeTimers.delete(roomCode);
 
@@ -107,7 +107,7 @@ app.prepare().then(async () => {
               votes: updatedRoom.currentGame.votes,
               players: updatedRoom.players
             });
-            broadcastRoomUpdate(roomCode, `🏆 Game Ended! ${updatedRoom.currentGame.winnerText}`);
+            broadcastRoomUpdate(roomCode);
           }
         }
       }
@@ -132,7 +132,7 @@ app.prepare().then(async () => {
         if (typeof callback === 'function') {
           callback({ roomCode: room.code, room });
         }
-        broadcastRoomUpdate(room.code, `Room created! ${name} is the Host.`);
+        broadcastRoomUpdate(room.code);
       } catch (err: any) {
         if (typeof callback === 'function') callback({ error: err.message });
       }
@@ -157,7 +157,7 @@ app.prepare().then(async () => {
           callback({ roomCode: room.code, room });
         }
 
-        broadcastRoomUpdate(room.code, `${name} joined the room!`);
+        broadcastRoomUpdate(room.code);
       } catch (err: any) {
         if (typeof callback === 'function') callback({ error: err.message });
       }
@@ -180,7 +180,6 @@ app.prepare().then(async () => {
 
         socket.join(updatedRoom.code);
 
-        // If game is in progress, re-send secret role payload
         let secretData = null;
         if (updatedRoom.currentGame && updatedRoom.status === 'playing') {
           const isImposter = updatedRoom.currentGame.imposterPlayerIds.includes(playerId);
@@ -196,7 +195,7 @@ app.prepare().then(async () => {
           callback({ room: updatedRoom, secretData });
         }
 
-        broadcastRoomUpdate(updatedRoom.code, `${name} reconnected.`);
+        broadcastRoomUpdate(updatedRoom.code);
       } catch (err: any) {
         if (typeof callback === 'function') callback({ error: err.message });
       }
@@ -211,7 +210,6 @@ app.prepare().then(async () => {
           return;
         }
 
-        // Send individual secret role payloads to each connected player socket
         room.players.forEach(p => {
           if (!p.isConnected) return;
           const isImposter = room.currentGame!.imposterPlayerIds.includes(p.playerId);
@@ -224,7 +222,7 @@ app.prepare().then(async () => {
         });
 
         startRoomTimer(room.code);
-        broadcastRoomUpdate(room.code, `🚀 Game started! Category: ${room.currentGame.category}. Check your secret role!`);
+        broadcastRoomUpdate(room.code);
 
         if (typeof callback === 'function') callback({ success: true });
       } catch (err: any) {
@@ -232,38 +230,38 @@ app.prepare().then(async () => {
       }
     });
 
-    // Vote
-    socket.on('game:vote', ({ roomCode, targetPlayerId, voterPlayerId }: { roomCode: string; targetPlayerId: string; voterPlayerId: string }, callback) => {
+    // Submit Turn Clue
+    socket.on('clue:submit', ({ roomCode, playerId, text }: { roomCode: string; playerId: string; text: string }, callback) => {
       try {
-        const { room, error, allVoted } = gameManager.castVote(roomCode, socket.id, voterPlayerId, targetPlayerId);
+        const { room, error, phaseChanged } = gameManager.submitClue(roomCode, playerId, text);
         if (error || !room) {
           if (typeof callback === 'function') callback({ error });
           return;
         }
 
-        const voter = room.players.find(p => p.playerId === voterPlayerId);
-        broadcastRoomUpdate(room.code, `${voter ? voter.name : 'A player'} cast a vote.`);
+        broadcastRoomUpdate(room.code);
 
-        if (allVoted) {
-          // All players voted -> finish immediately
-          if (activeTimers.has(room.code)) {
-            clearInterval(activeTimers.get(room.code)!);
-            activeTimers.delete(room.code);
-          }
-
-          const { room: updatedRoom } = gameManager.evaluateResults(room.code);
-          if (updatedRoom && updatedRoom.currentGame) {
-            io.to(room.code).emit('game:results', {
-              winner: updatedRoom.currentGame.winner,
-              winnerText: updatedRoom.currentGame.winnerText,
-              realWord: updatedRoom.currentGame.realWord,
-              imposterPlayerIds: updatedRoom.currentGame.imposterPlayerIds,
-              votes: updatedRoom.currentGame.votes,
-              players: updatedRoom.players
-            });
-            broadcastRoomUpdate(room.code, `🏆 All votes cast! ${updatedRoom.currentGame.winnerText}`);
-          }
+        if (phaseChanged) {
+          io.to(room.code).emit('game:phaseChanged', { phase: 'voting', timer: 60 });
         }
+
+        if (typeof callback === 'function') callback({ success: true });
+      } catch (err: any) {
+        if (typeof callback === 'function') callback({ error: err.message });
+      }
+    });
+
+    // Instant Vote Casting & Changing
+    socket.on('game:vote', ({ roomCode, targetPlayerId, voterPlayerId }: { roomCode: string; targetPlayerId: string; voterPlayerId: string }, callback) => {
+      try {
+        const { room, error } = gameManager.castVote(roomCode, socket.id, voterPlayerId, targetPlayerId);
+        if (error || !room) {
+          if (typeof callback === 'function') callback({ error });
+          return;
+        }
+
+        // Instantly broadcast room update so everyone sees live vote updates
+        broadcastRoomUpdate(room.code);
 
         if (typeof callback === 'function') callback({ success: true });
       } catch (err: any) {
@@ -279,7 +277,7 @@ app.prepare().then(async () => {
           if (typeof callback === 'function') callback({ error });
           return;
         }
-        broadcastRoomUpdate(room.code, `Admin added a custom word "${word}" to category "${category}".`);
+        broadcastRoomUpdate(room.code);
         if (typeof callback === 'function') callback({ success: true, customWordsCount: room.customWords.length });
       } catch (err: any) {
         if (typeof callback === 'function') callback({ error: err.message });
@@ -294,7 +292,7 @@ app.prepare().then(async () => {
           if (typeof callback === 'function') callback({ error });
           return;
         }
-        broadcastRoomUpdate(room.code, `Host updated room settings.`);
+        broadcastRoomUpdate(room.code);
         if (typeof callback === 'function') callback({ success: true });
       } catch (err: any) {
         if (typeof callback === 'function') callback({ error: err.message });
@@ -309,7 +307,7 @@ app.prepare().then(async () => {
           if (typeof callback === 'function') callback({ error });
           return;
         }
-        broadcastRoomUpdate(room.code, `Host kicked a player from the room.`);
+        broadcastRoomUpdate(room.code);
         if (typeof callback === 'function') callback({ success: true });
       } catch (err: any) {
         if (typeof callback === 'function') callback({ error: err.message });
@@ -328,22 +326,11 @@ app.prepare().then(async () => {
           clearInterval(activeTimers.get(room.code)!);
           activeTimers.delete(room.code);
         }
-        broadcastRoomUpdate(room.code, `🔄 Room reset! Welcome back to the lobby.`);
+        broadcastRoomUpdate(room.code);
         if (typeof callback === 'function') callback({ success: true });
       } catch (err: any) {
         if (typeof callback === 'function') callback({ error: err.message });
       }
-    });
-
-    // Chat Message
-    socket.on('chat:message', ({ roomCode, sender, message }: { roomCode: string; sender: string; message: string }) => {
-      if (!roomCode || !message || !message.trim()) return;
-      io.to(roomCode).emit('chat:message', {
-        sender: sender || 'Player',
-        message: message.trim(),
-        isSystem: false,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      });
     });
 
     // Disconnect
@@ -351,7 +338,7 @@ app.prepare().then(async () => {
       console.log(`Socket disconnected: ${socket.id}`);
       const { roomCode, player, room } = gameManager.handleDisconnect(socket.id);
       if (roomCode && player && room) {
-        broadcastRoomUpdate(roomCode, `${player.name} went offline.`);
+        broadcastRoomUpdate(roomCode);
       }
     });
   });

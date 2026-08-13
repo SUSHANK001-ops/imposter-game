@@ -1,6 +1,6 @@
 import { SEED_DATA } from '../data/seedData';
 import { connectToDatabase } from './mongodb';
-import { Room, IRoom, IPlayer, IVote } from '../models/Room';
+import { Room, IPlayer, IVote, IClue } from '../models/Room';
 import { Word } from '../models/Word';
 import { Category } from '../models/Category';
 
@@ -12,7 +12,7 @@ export interface RoomState {
   players: IPlayer[];
   settings: {
     maxPlayers: number;
-    discussionTime: number;
+    turnTime: number;
     imposterCount: number;
     showImposterHint: boolean;
   };
@@ -24,12 +24,15 @@ export interface RoomState {
     imposterPlayerIds: string[];
     phase: 'discussing' | 'voting' | 'results';
     votes: IVote[];
+    clues: IClue[];
+    currentTurnPlayerId: string;
+    turnTimeLeft: number;
+    turnOrderPlayerIds: string[];
     startedAt: Date;
     endedAt?: Date;
     winner?: 'crew' | 'imposter' | 'tie';
     winnerText?: string;
     imposterHint?: string;
-    timeLeft: number;
   } | null;
   customWords: Array<{ word: string; category: string }>;
   lastActivity: Date;
@@ -37,14 +40,9 @@ export interface RoomState {
 
 class GameManager {
   private rooms: Map<string, RoomState> = new Map();
-  private timers: Map<string, NodeJS.Timeout> = new Map();
-
-  constructor() {
-    // Initialized in memory
-  }
 
   public generateRoomCode(): string {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude ambiguous chars like I, O, 0, 1
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
     do {
       code = '';
@@ -75,7 +73,7 @@ class GameManager {
       players: [hostPlayer],
       settings: {
         maxPlayers: 8,
-        discussionTime: 180,
+        turnTime: 20,
         imposterCount: 1,
         showImposterHint: false
       },
@@ -101,11 +99,9 @@ class GameManager {
       return { error: 'Room not found. Please check the code and try again.' };
     }
 
-    // Check if player already exists (reconnection)
     const existingPlayerIndex = room.players.findIndex(p => p.playerId === playerId);
 
     if (existingPlayerIndex !== -1) {
-      // Reconnect existing player
       room.players[existingPlayerIndex].socketId = socketId;
       room.players[existingPlayerIndex].isConnected = true;
       room.players[existingPlayerIndex].name = name || room.players[existingPlayerIndex].name;
@@ -115,7 +111,6 @@ class GameManager {
         room.players[existingPlayerIndex].isAdmin = true;
       }
     } else {
-      // New player joining
       if (room.players.length >= room.settings.maxPlayers) {
         return { error: 'Room is full!' };
       }
@@ -152,7 +147,6 @@ class GameManager {
         player.isConnected = false;
         room.lastActivity = new Date();
 
-        // If admin disconnects, pass admin role to next connected player if room waiting
         if (player.isAdmin && room.status === 'waiting') {
           const nextConnected = room.players.find(p => p.isConnected && p.socketId !== socketId);
           if (nextConnected) {
@@ -216,15 +210,12 @@ class GameManager {
   }
 
   public getRandomWordAndCategory(room: RoomState): { category: string; realWord: string; decoyWord: string } {
-    // Combine seed data categories + room custom words
     const allCategoriesMap: Map<string, string[]> = new Map();
 
-    // Load from seed data
     SEED_DATA.forEach(cat => {
       allCategoriesMap.set(cat.category, [...cat.words]);
     });
 
-    // Add room custom words
     room.customWords.forEach(cw => {
       const existing = allCategoriesMap.get(cw.category) || [];
       existing.push(cw.word);
@@ -238,7 +229,6 @@ class GameManager {
     const realWordIndex = Math.floor(Math.random() * wordList.length);
     const realWord = wordList[realWordIndex];
 
-    // Pick a decoy word from the same category
     let decoyWord = "???";
     if (wordList.length > 1) {
       let decoyIndex = Math.floor(Math.random() * wordList.length);
@@ -258,17 +248,15 @@ class GameManager {
     if (!room) return { error: 'Room not found' };
     if (room.adminSocketId !== adminSocketId) return { error: 'Only admin can start the game' };
     
-    // Note: Prompt mentions "Admin can force-start even with <4 players (for testing)", but ideally requires >= 2
-    if (room.players.length < 2) {
-      return { error: 'Need at least 2 connected players to start!' };
+    // Per requirement: minimum 3 players needed to start room
+    const connectedPlayers = room.players.filter(p => p.isConnected);
+    if (connectedPlayers.length < 3) {
+      return { error: 'Need at least 3 players to start the game!' };
     }
 
     const { category, realWord, decoyWord } = this.getRandomWordAndCategory(room);
 
-    // Pick random imposters
-    const connectedPlayers = room.players.filter(p => p.isConnected);
     const imposterCount = Math.min(room.settings.imposterCount, Math.floor(connectedPlayers.length / 2) || 1);
-    
     const shuffled = [...connectedPlayers].sort(() => 0.5 - Math.random());
     const imposters = shuffled.slice(0, imposterCount);
 
@@ -277,6 +265,10 @@ class GameManager {
 
     const imposterWord = room.settings.showImposterHint ? decoyWord : "???";
     const imposterHint = room.settings.showImposterHint ? `Hint: Decoy word is "${decoyWord}"` : undefined;
+
+    // Turn order
+    const turnOrderPlayerIds = connectedPlayers.map(p => p.playerId);
+    const currentTurnPlayerId = turnOrderPlayerIds[0] || "";
 
     room.status = 'playing';
     room.currentGame = {
@@ -287,8 +279,11 @@ class GameManager {
       imposterPlayerIds,
       phase: 'discussing',
       votes: [],
+      clues: [],
+      turnOrderPlayerIds,
+      currentTurnPlayerId,
+      turnTimeLeft: room.settings.turnTime || 20,
       startedAt: new Date(),
-      timeLeft: room.settings.discussionTime,
       imposterHint
     };
 
@@ -297,7 +292,84 @@ class GameManager {
     return { room };
   }
 
-  public castVote(roomCode: string, voterSocketId: string, voterPlayerId: string, targetPlayerId: string): { room?: RoomState; error?: string; allVoted?: boolean } {
+  public submitClue(roomCode: string, playerId: string, text: string): { room?: RoomState; error?: string; phaseChanged?: boolean } {
+    const room = this.rooms.get(roomCode.toUpperCase());
+    if (!room || !room.currentGame) return { error: 'Game session not active' };
+    if (room.currentGame.phase !== 'discussing') return { error: 'Not in turn clue phase' };
+
+    const game = room.currentGame;
+    if (game.currentTurnPlayerId !== playerId) {
+      return { error: 'It is not your turn to submit a word!' };
+    }
+
+    const player = room.players.find(p => p.playerId === playerId);
+    const playerName = player ? player.name : 'Player';
+
+    // Record clue
+    game.clues.push({
+      playerId,
+      playerName,
+      text: text.trim() || '(Pass)',
+      submittedAt: new Date()
+    });
+
+    // Advance to next turn
+    const currentIndex = game.turnOrderPlayerIds.indexOf(playerId);
+    const nextIndex = currentIndex + 1;
+
+    let phaseChanged = false;
+
+    if (nextIndex < game.turnOrderPlayerIds.length) {
+      game.currentTurnPlayerId = game.turnOrderPlayerIds[nextIndex];
+      game.turnTimeLeft = room.settings.turnTime || 20;
+    } else {
+      // All players completed turns -> transition to voting phase
+      game.phase = 'voting';
+      game.currentTurnPlayerId = "";
+      game.turnTimeLeft = 60; // 60 seconds voting duration
+      phaseChanged = true;
+    }
+
+    this.saveRoomToDb(room);
+    return { room, phaseChanged };
+  }
+
+  public nextTurnTimeout(roomCode: string): { room?: RoomState; phaseChanged?: boolean } {
+    const room = this.rooms.get(roomCode.toUpperCase());
+    if (!room || !room.currentGame || room.currentGame.phase !== 'discussing') return {};
+
+    const game = room.currentGame;
+    const currentId = game.currentTurnPlayerId;
+    const player = room.players.find(p => p.playerId === currentId);
+
+    // Record timeout pass clue
+    game.clues.push({
+      playerId: currentId,
+      playerName: player ? player.name : 'Player',
+      text: '(Time Expired)',
+      submittedAt: new Date()
+    });
+
+    const currentIndex = game.turnOrderPlayerIds.indexOf(currentId);
+    const nextIndex = currentIndex + 1;
+
+    let phaseChanged = false;
+
+    if (nextIndex < game.turnOrderPlayerIds.length) {
+      game.currentTurnPlayerId = game.turnOrderPlayerIds[nextIndex];
+      game.turnTimeLeft = room.settings.turnTime || 20;
+    } else {
+      game.phase = 'voting';
+      game.currentTurnPlayerId = "";
+      game.turnTimeLeft = 60;
+      phaseChanged = true;
+    }
+
+    this.saveRoomToDb(room);
+    return { room, phaseChanged };
+  }
+
+  public castVote(roomCode: string, voterSocketId: string, voterPlayerId: string, targetPlayerId: string): { room?: RoomState; error?: string } {
     const room = this.rooms.get(roomCode.toUpperCase());
     if (!room || !room.currentGame) return { error: 'Game session not active' };
     if (room.currentGame.phase !== 'voting') return { error: 'Voting is not open' };
@@ -305,7 +377,7 @@ class GameManager {
     const targetPlayer = room.players.find(p => p.playerId === targetPlayerId);
     if (!targetPlayer) return { error: 'Target player not found' };
 
-    // Record or update vote
+    // Record or update vote instantly (players can change vote anytime!)
     const existingVoteIndex = room.currentGame.votes.findIndex(v => v.voterPlayerId === voterPlayerId);
     const voteData: IVote = {
       voterSocketId,
@@ -320,11 +392,8 @@ class GameManager {
       room.currentGame.votes.push(voteData);
     }
 
-    const connectedPlayers = room.players.filter(p => p.isConnected);
-    const allVoted = room.currentGame.votes.length >= connectedPlayers.length;
-
     this.saveRoomToDb(room);
-    return { room, allVoted };
+    return { room };
   }
 
   public evaluateResults(roomCode: string): { room?: RoomState; error?: string } {
@@ -335,7 +404,6 @@ class GameManager {
     game.phase = 'results';
     game.endedAt = new Date();
 
-    // Count votes for each target
     const voteTally: Map<string, number> = new Map();
     game.votes.forEach(v => {
       const count = voteTally.get(v.targetPlayerId) || 0;
@@ -358,7 +426,6 @@ class GameManager {
     let winnerText = '';
 
     if (maxVotes === 0 || topTargets.length > 1) {
-      // Tie vote or no votes cast
       winner = 'tie';
       winnerText = 'Tie Vote! The Imposter escaped undetected.';
     } else {
@@ -370,7 +437,6 @@ class GameManager {
       if (isImposter) {
         winner = 'crew';
         winnerText = `Crew Wins! ${votedOutName} was identified as the Imposter!`;
-        // Award score points to Crew
         room.players.forEach(p => {
           if (!game.imposterPlayerIds.includes(p.playerId)) {
             p.score += 10;
@@ -379,7 +445,6 @@ class GameManager {
       } else {
         winner = 'imposter';
         winnerText = `Imposter Wins! ${votedOutName} was innocent, the Imposter fooled everyone!`;
-        // Award score points to Imposter
         room.players.forEach(p => {
           if (game.imposterPlayerIds.includes(p.playerId)) {
             p.score += 15;
@@ -429,6 +494,10 @@ class GameManager {
             imposterPlayerIds: room.currentGame.imposterPlayerIds,
             phase: room.currentGame.phase,
             votes: room.currentGame.votes,
+            clues: room.currentGame.clues,
+            currentTurnPlayerId: room.currentGame.currentTurnPlayerId,
+            turnTimeLeft: room.currentGame.turnTimeLeft,
+            turnOrderPlayerIds: room.currentGame.turnOrderPlayerIds,
             startedAt: room.currentGame.startedAt,
             endedAt: room.currentGame.endedAt,
             winner: room.currentGame.winner,
@@ -441,7 +510,7 @@ class GameManager {
         { upsert: true, new: true }
       );
     } catch (e) {
-      // Gracefully ignore DB errors if offline
+      // Ignore DB errors if offline
     }
   }
 
@@ -463,7 +532,7 @@ class GameManager {
         { upsert: true }
       );
     } catch (e) {
-      // Graceful error handle
+      // Graceful handle
     }
   }
 }
