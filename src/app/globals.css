@@ -3,7 +3,7 @@
 @import "tailwindcss/utilities";
 
 :root {
-  --background: #070d1e;
+  --background: #070d1d;
   --foreground: #f8fafc;
 }
 
@@ -21,37 +21,27 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(10, 18, 40, 0.8);
+  background: #0b152d;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(37, 99, 235, 0.5);
+  background: #1e3a8a;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(37, 99, 235, 0.8);
+  background: #2563eb;
 }
 
-/* Clean Navy Background Radial Accent */
+/* Flat Solid Backgrounds & Panels */
 .bg-radial-glow {
-  background: radial-gradient(circle at 50% 0%, rgba(29, 78, 216, 0.2) 0%, rgba(15, 23, 42, 0.8) 50%, rgba(7, 13, 30, 1) 100%);
+  background: #070d1d;
 }
 
 .glass-panel {
-  background: rgba(13, 23, 48, 0.75);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(30, 58, 138, 0.3);
+  background: #0d1730;
+  border: 1px solid #1e3a8a;
 }
 
 .glass-card {
-  background: rgba(18, 32, 64, 0.6);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-.neon-border-blue {
-  box-shadow: 0 0 20px rgba(37, 99, 235, 0.35);
-}
-
-.neon-border-red {
-  box-shadow: 0 0 20px rgba(220, 38, 38, 0.4);
+  background: #122040;
+  border: 1px solid #1e3a8a;
 }

@@ -30,7 +30,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     : allCategoryNames;
 
   const [turnTime, setTurnTime] = useState(currentSettings.turnTime || 20);
-  const [maxPlayers, setMaxPlayers] = useState(currentSettings.maxPlayers || 8);
+  const [maxPlayers, setMaxPlayers] = useState(currentSettings.maxPlayers || 10);
   const [showImposterHint, setShowImposterHint] = useState(currentSettings.showImposterHint || false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>(initialSelected);
   const [errorMsg, setErrorMsg] = useState('');
@@ -54,7 +54,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const selectAll = () => setSelectedCategories(allCategoryNames);
   const deselectAll = () => {
-    // Keep at least the first category
     setSelectedCategories([allCategoryNames[0]]);
   };
 
@@ -81,8 +80,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="glass-panel w-full max-w-lg rounded-2xl border border-blue-900/60 p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-in fade-in duration-200">
+      <div className="glass-panel w-full max-w-lg rounded-2xl border border-blue-900 p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
@@ -91,17 +90,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </button>
 
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 border border-blue-500 flex items-center justify-center text-white">
             <Settings className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-lg font-bold text-white">Room Settings</h2>
-            <p className="text-xs text-slate-400">Customize categories, turn timer & gameplay rules.</p>
+            <p className="text-xs text-slate-400">Customize categories, turn timer & max players (up to 20).</p>
           </div>
         </div>
 
         {errorMsg && (
-          <div className="mb-4 p-2.5 bg-red-950/80 border border-red-800 rounded-xl text-red-300 text-xs font-medium text-center">
+          <div className="mb-4 p-2.5 bg-red-950 border border-red-800 rounded-xl text-red-300 text-xs font-medium text-center">
             {errorMsg}
           </div>
         )}
@@ -132,7 +131,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-40 overflow-y-auto p-2 bg-slate-950/70 rounded-xl border border-slate-800">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-40 overflow-y-auto p-2 bg-slate-950 rounded-xl border border-slate-800">
               {allCategoryNames.map((catName) => {
                 const isSelected = selectedCategories.includes(catName);
                 return (
@@ -142,12 +141,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     onClick={() => toggleCategory(catName)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all text-left truncate ${
                       isSelected
-                        ? 'bg-blue-600/30 border border-blue-500/60 text-white font-medium'
+                        ? 'bg-blue-600 border border-blue-500 text-white font-medium'
                         : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     {isSelected ? (
-                      <CheckSquare className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <CheckSquare className="w-3.5 h-3.5 text-white shrink-0" />
                     ) : (
                       <Square className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                     )}
@@ -158,7 +157,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Turn Time (Seconds per player) */}
+          {/* Turn Duration */}
           <div>
             <label className="text-xs font-semibold text-blue-300 mb-1.5 flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-400" />
@@ -172,7 +171,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onClick={() => setTurnTime(seconds)}
                   className={`py-2 text-xs font-semibold rounded-xl border transition-all ${
                     turnTime === seconds
-                      ? 'bg-blue-600 border-blue-400 text-white shadow-lg'
+                      ? 'bg-blue-600 border-blue-500 text-white shadow-lg'
                       : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-blue-800'
                   }`}
                 >
@@ -182,21 +181,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Max Players */}
+          {/* Max Players Limit (Up to 20) */}
           <div>
             <label className="text-xs font-semibold text-blue-300 mb-1.5 flex items-center gap-2">
               <Users className="w-4 h-4 text-blue-400" />
-              <span>Max Players Limit</span>
+              <span>Max Players Limit (Up to 20)</span>
             </label>
             <div className="grid grid-cols-5 gap-2">
-              {[4, 6, 8, 10, 12].map((num) => (
+              {[4, 8, 12, 16, 20].map((num) => (
                 <button
                   type="button"
                   key={num}
                   onClick={() => setMaxPlayers(num)}
                   className={`py-2 text-xs font-semibold rounded-xl border transition-all ${
                     maxPlayers === num
-                      ? 'bg-blue-600 border-blue-400 text-white shadow-lg'
+                      ? 'bg-blue-600 border-blue-500 text-white shadow-lg'
                       : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-blue-800'
                   }`}
                 >
@@ -207,7 +206,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
 
           {/* Imposter Hint Toggle */}
-          <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+          <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
             <div className="flex items-start gap-3">
               <Lightbulb className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
               <div>
@@ -221,7 +220,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               type="button"
               onClick={() => setShowImposterHint(!showImposterHint)}
               className={`w-12 h-6 rounded-full transition-colors relative border ${
-                showImposterHint ? 'bg-red-600 border-red-400' : 'bg-slate-800 border-slate-700'
+                showImposterHint ? 'bg-red-600 border-red-500' : 'bg-slate-800 border-slate-700'
               }`}
             >
               <div

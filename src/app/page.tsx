@@ -71,20 +71,16 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-between p-4 sm:p-8 relative bg-radial-glow">
-      {/* Decorative Red & Blue Glowing Blobs */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/15 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 left-1/3 w-80 h-80 bg-red-600/15 rounded-full blur-[100px] pointer-events-none" />
-
+    <main className="min-h-screen flex flex-col items-center justify-between p-4 sm:p-8 relative bg-slate-950">
       {/* Main Container */}
       <div className="w-full max-w-xl mx-auto flex-1 flex flex-col justify-center items-center py-8 z-10">
         {/* Title Header */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-red-600 via-blue-600 to-slate-900 flex items-center justify-center border-2 border-white/20 shadow-2xl neon-border-blue mb-4 transform hover:rotate-3 transition-transform">
-            <Ghost className="w-10 h-10 text-white animate-pulse" />
+          <div className="w-20 h-20 rounded-3xl bg-blue-600 flex items-center justify-center border-2 border-white/20 shadow-xl mb-4 transform hover:scale-105 transition-transform">
+            <Ghost className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white flex items-center gap-2">
-            IMPOSTER <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-white to-blue-500">GAME</span>
+            IMPOSTER <span className="text-red-500">GAME</span>
           </h1>
           <p className="text-slate-300 text-sm sm:text-base mt-2 max-w-md">
             The ultimate social deduction game! Question your friends, blend in, and unmask the imposter.
@@ -92,8 +88,8 @@ export default function Home() {
         </div>
 
         {/* Card Form */}
-        <div className="w-full glass-panel rounded-3xl p-6 sm:p-8 border border-blue-900/40 shadow-2xl relative">
-          <div className="grid grid-cols-2 p-1 bg-slate-950/80 rounded-2xl border border-slate-800 mb-6">
+        <div className="w-full glass-panel rounded-3xl p-6 sm:p-8 border border-blue-900 shadow-2xl relative">
+          <div className="grid grid-cols-2 p-1 bg-slate-900 rounded-2xl border border-slate-800 mb-6">
             <button
               onClick={() => setActiveTab('create')}
               className={`py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
@@ -117,7 +113,7 @@ export default function Home() {
           </div>
 
           {errorMsg && (
-            <div className="mb-4 p-3 bg-red-950/80 border border-red-800/60 rounded-xl text-red-300 text-xs font-medium text-center animate-in fade-in">
+            <div className="mb-4 p-3 bg-red-950 border border-red-800 rounded-xl text-red-300 text-xs font-medium text-center animate-in fade-in">
               {errorMsg}
             </div>
           )}
@@ -140,7 +136,7 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-bold py-3.5 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 group transform active:scale-95 disabled:opacity-50"
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 group transform active:scale-95 disabled:opacity-50"
               >
                 <span>{loading ? 'Creating Room...' : 'Create Lobby & Get Code'}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -177,7 +173,7 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold py-3.5 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 group transform active:scale-95 disabled:opacity-50"
+                className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3.5 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 group transform active:scale-95 disabled:opacity-50"
               >
                 <Play className="w-4 h-4 fill-white" />
                 <span>{loading ? 'Joining Room...' : 'Join Game Room'}</span>
@@ -186,7 +182,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* Feature Highlights Grid */}
+        {/* Feature Highlights */}
         <div className="grid grid-cols-3 gap-3 w-full mt-8">
           <div className="glass-card p-3 rounded-2xl flex flex-col items-center text-center">
             <BookOpen className="w-5 h-5 text-blue-400 mb-1" />
@@ -195,7 +191,7 @@ export default function Home() {
           </div>
           <div className="glass-card p-3 rounded-2xl flex flex-col items-center text-center">
             <Users className="w-5 h-5 text-red-400 mb-1" />
-            <h4 className="text-xs font-bold text-white">3-12 Players</h4>
+            <h4 className="text-xs font-bold text-white">3-20 Players</h4>
             <p className="text-[10px] text-slate-400">Turn clue rounds</p>
           </div>
           <div className="glass-card p-3 rounded-2xl flex flex-col items-center text-center">
@@ -207,8 +203,8 @@ export default function Home() {
       </div>
 
       <footer className="text-center text-xs text-slate-500 py-4 border-t border-slate-900 w-full max-w-4xl">
-        Imposter Multiplayer Game MVP &bull; Red, White & Blue Edition
-      </footer>
+        Imposter Multiplayer Game  &bull; made by <a href="https://sushanka.com.np" className="text-blue-500 hover:text-blue-400">sushanka</a> with love ❤️
+      </footer> 
     </main>
   );
 }

@@ -107,7 +107,7 @@ const GameSessionSchema = new Schema<IGameSession>({
 });
 
 const RoomSettingsSchema = new Schema<IRoomSettings>({
-  maxPlayers: { type: Number, default: 8, min: 3, max: 12 },
+  maxPlayers: { type: Number, default: 10, min: 3, max: 20 },
   turnTime: { type: Number, default: 20, min: 10, max: 60 },
   imposterCount: { type: Number, default: 1, min: 1, max: 3 },
   showImposterHint: { type: Boolean, default: false },

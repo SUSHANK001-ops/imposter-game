@@ -75,7 +75,7 @@ class GameManager {
       status: 'waiting',
       players: [hostPlayer],
       settings: {
-        maxPlayers: 8,
+        maxPlayers: 10,
         turnTime: 20,
         imposterCount: 1,
         showImposterHint: false,
@@ -115,8 +115,8 @@ class GameManager {
         room.players[existingPlayerIndex].isAdmin = true;
       }
     } else {
-      if (room.players.length >= room.settings.maxPlayers) {
-        return { error: 'Room is full!' };
+      if (room.players.length >= (room.settings.maxPlayers || 20)) {
+        return { error: `Room is full! (Max ${room.settings.maxPlayers || 20} players)` };
       }
 
       const newPlayer: IPlayer = {
@@ -210,7 +210,6 @@ class GameManager {
 
     room.customWords.push({ word: cleanWord, category: cleanCategory });
 
-    // Also auto-add custom category to host selectedCategories if not present
     if (!room.settings.selectedCategories.includes(cleanCategory)) {
       room.settings.selectedCategories.push(cleanCategory);
     }
@@ -234,7 +233,6 @@ class GameManager {
 
     let availableCategoryNames = Array.from(allCategoriesMap.keys());
 
-    // Filter by selectedCategories if specified by host
     if (room.settings.selectedCategories && room.settings.selectedCategories.length > 0) {
       const filtered = availableCategoryNames.filter(catName => room.settings.selectedCategories.includes(catName));
       if (filtered.length > 0) {
