@@ -272,7 +272,8 @@ class GameManager {
 
     const { category, realWord, decoyWord } = this.getRandomWordAndCategory(room);
 
-    const imposterCount = Math.min(room.settings.imposterCount, Math.floor(connectedPlayers.length / 2) || 1);
+    const maxImpostersAllowed = Math.max(1, Math.floor((connectedPlayers.length - 1) / 2));
+    const imposterCount = Math.min(room.settings.imposterCount || 1, maxImpostersAllowed);
     const shuffled = [...connectedPlayers].sort(() => 0.5 - Math.random());
     const imposters = shuffled.slice(0, imposterCount);
 
@@ -317,13 +318,27 @@ class GameManager {
       return { error: 'It is not your turn to submit a word!' };
     }
 
+    const cleanText = text.trim();
+    if (!cleanText) return { error: 'Clue word cannot be empty' };
+
+    // Prevent duplicate clue words (case-insensitive check against non-expired clues)
+    const normalizedNew = cleanText.toLowerCase();
+    const isDuplicate = game.clues.some(c => {
+      const existingNormalized = c.text.trim().toLowerCase();
+      return existingNormalized === normalizedNew && existingNormalized !== '(time expired)' && existingNormalized !== '(pass)';
+    });
+
+    if (isDuplicate) {
+      return { error: `The clue word "${cleanText}" has already been used! Please choose a unique word.` };
+    }
+
     const player = room.players.find(p => p.playerId === playerId);
     const playerName = player ? player.name : 'Player';
 
     game.clues.push({
       playerId,
       playerName,
-      text: text.trim() || '(Pass)',
+      text: cleanText,
       submittedAt: new Date()
     });
 
@@ -380,7 +395,7 @@ class GameManager {
     return { room, phaseChanged };
   }
 
-  public castVote(roomCode: string, voterSocketId: string, voterPlayerId: string, targetPlayerId: string): { room?: RoomState; error?: string } {
+  public castVote(roomCode: string, voterSocketId: string, voterPlayerId: string, targetPlayerId: string): { room?: RoomState; error?: string; allVoted?: boolean } {
     const room = this.rooms.get(roomCode.toUpperCase());
     if (!room || !room.currentGame) return { error: 'Game session not active' };
     if (room.currentGame.phase !== 'voting') return { error: 'Voting is not open' };
@@ -402,17 +417,19 @@ class GameManager {
       room.currentGame.votes.push(voteData);
     }
 
+    // Check if all connected active players have voted
+    const activeConnectedPlayers = room.players.filter(p => p.isConnected);
+    const allVoted = room.currentGame.votes.length >= activeConnectedPlayers.length;
+
     this.saveRoomToDb(room);
-    return { room };
+    return { room, allVoted };
   }
 
-  public evaluateResults(roomCode: string): { room?: RoomState; error?: string } {
+  public evaluateResults(roomCode: string): { room?: RoomState; error?: string; gameContinued?: boolean; announcementText?: string } {
     const room = this.rooms.get(roomCode.toUpperCase());
     if (!room || !room.currentGame) return { error: 'No active game session' };
 
     const game = room.currentGame;
-    game.phase = 'results';
-    game.endedAt = new Date();
 
     const voteTally: Map<string, number> = new Map();
     game.votes.forEach(v => {
@@ -432,43 +449,95 @@ class GameManager {
       }
     });
 
-    let winner: 'crew' | 'imposter' | 'tie' = 'imposter';
-    let winnerText = '';
-
+    // Check voting outcome
     if (maxVotes === 0 || topTargets.length > 1) {
-      winner = 'tie';
-      winnerText = 'Tie Vote! The Imposter escaped undetected.';
-    } else {
-      const votedOutPlayerId = topTargets[0];
-      const isImposter = game.imposterPlayerIds.includes(votedOutPlayerId);
-      const votedOutPlayer = room.players.find(p => p.playerId === votedOutPlayerId);
-      const votedOutName = votedOutPlayer ? votedOutPlayer.name : 'Unknown';
-
-      if (isImposter) {
-        winner = 'crew';
-        winnerText = `Crew Wins! ${votedOutName} was identified as the Imposter!`;
-        room.players.forEach(p => {
-          if (!game.imposterPlayerIds.includes(p.playerId)) {
-            p.score += 10;
-          }
-        });
-      } else {
-        winner = 'imposter';
-        winnerText = `Imposter Wins! ${votedOutName} was innocent, the Imposter fooled everyone!`;
-        room.players.forEach(p => {
-          if (game.imposterPlayerIds.includes(p.playerId)) {
-            p.score += 15;
-          }
-        });
-      }
+      // Tie vote or no votes -> Imposter is NOT voted out! Continue to next clue round!
+      game.phase = 'discussing';
+      game.votes = [];
+      game.turnTimeLeft = room.settings.turnTime || 20;
+      game.currentTurnPlayerId = game.turnOrderPlayerIds[0] || "";
+      this.saveRoomToDb(room);
+      return { 
+        room, 
+        gameContinued: true, 
+        announcementText: "Tie Vote! No player was eliminated. Imposter is still among us — starting Round 2!" 
+      };
     }
 
-    game.winner = winner;
-    game.winnerText = winnerText;
-    room.status = 'ended';
+    const votedOutPlayerId = topTargets[0];
+    const isImposter = game.imposterPlayerIds.includes(votedOutPlayerId);
+    const votedOutPlayer = room.players.find(p => p.playerId === votedOutPlayerId);
+    const votedOutName = votedOutPlayer ? votedOutPlayer.name : 'Unknown';
 
-    this.saveRoomToDb(room);
-    return { room };
+    if (isImposter) {
+      // Imposter IS voted out! Crew Wins! Game Ends!
+      game.phase = 'results';
+      game.endedAt = new Date();
+      game.winner = 'crew';
+      game.winnerText = `Crew Wins! ${votedOutName} was identified as the Imposter!`;
+      room.status = 'ended';
+
+      room.players.forEach(p => {
+        if (!game.imposterPlayerIds.includes(p.playerId)) {
+          p.score += 10;
+        }
+      });
+
+      this.saveRoomToDb(room);
+      return { room, gameContinued: false };
+    } else {
+      // Voted out player is INNOCENT! Imposter is NOT voted out yet!
+      // Check if all crew members are eliminated or if game can continue to next round
+      // To keep gameplay fluid, start another turn/discussion round so players can give fresh clues and catch the imposter!
+      game.phase = 'discussing';
+      game.votes = [];
+      game.turnTimeLeft = room.settings.turnTime || 20;
+      game.currentTurnPlayerId = game.turnOrderPlayerIds[0] || "";
+
+      this.saveRoomToDb(room);
+      return {
+        room,
+        gameContinued: true,
+    }
+  }
+
+  public guessWord(roomCode: string, playerId: string, wordGuess: string): { room?: RoomState; error?: string; correct?: boolean } {
+    const room = this.rooms.get(roomCode.toUpperCase());
+    if (!room || !room.currentGame || room.status !== 'playing') {
+      return { error: 'No active game session' };
+    }
+
+    const game = room.currentGame;
+    if (!game.imposterPlayerIds.includes(playerId)) {
+      return { error: 'Only the Imposter can guess the secret word!' };
+    }
+
+    const cleanGuess = wordGuess.trim().toLowerCase();
+    const cleanRealWord = game.realWord.trim().toLowerCase();
+
+    if (!cleanGuess) return { error: 'Guess cannot be empty' };
+
+    if (cleanGuess === cleanRealWord) {
+      const player = room.players.find(p => p.playerId === playerId);
+      const imposterName = player ? player.name : 'The Imposter';
+
+      game.phase = 'results';
+      game.endedAt = new Date();
+      game.winner = 'imposter';
+      game.winnerText = `Imposter Wins! ${imposterName} correctly guessed the secret word "${game.realWord}"!`;
+      room.status = 'ended';
+
+      room.players.forEach(p => {
+        if (game.imposterPlayerIds.includes(p.playerId)) {
+          p.score += 20;
+        }
+      });
+
+      this.saveRoomToDb(room);
+      return { room, correct: true };
+    } else {
+      return { room, correct: false, error: `Incorrect guess! "${wordGuess.trim()}" is not the secret word.` };
+    }
   }
 
   public playAgain(roomCode: string, adminSocketId: string): { room?: RoomState; error?: string } {

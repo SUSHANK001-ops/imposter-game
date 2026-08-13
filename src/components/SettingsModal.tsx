@@ -31,6 +31,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const [turnTime, setTurnTime] = useState(currentSettings.turnTime || 20);
   const [maxPlayers, setMaxPlayers] = useState(currentSettings.maxPlayers || 10);
+  const [imposterCount, setImposterCount] = useState(currentSettings.imposterCount || 1);
   const [showImposterHint, setShowImposterHint] = useState(currentSettings.showImposterHint || false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>(initialSelected);
   const [errorMsg, setErrorMsg] = useState('');
@@ -69,6 +70,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       settings: {
         turnTime: Number(turnTime),
         maxPlayers: Number(maxPlayers),
+        imposterCount: Number(imposterCount),
         showImposterHint,
         selectedCategories
       }
@@ -203,6 +205,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Number of Imposters (Admin permission) */}
+          <div>
+            <label className="text-xs font-semibold text-blue-300 mb-1.5 flex items-center gap-2">
+              <Users className="w-4 h-4 text-red-400" />
+              <span>Number of Imposters ({imposterCount})</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[1, 2, 3].map((num) => (
+                <button
+                  type="button"
+                  key={num}
+                  onClick={() => setImposterCount(num)}
+                  className={`py-2 text-xs font-semibold rounded-xl border transition-all ${
+                    imposterCount === num
+                      ? 'bg-red-600 border-red-500 text-white shadow-lg'
+                      : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-red-800'
+                  }`}
+                >
+                  {num} {num === 1 ? 'Imposter' : 'Imposters'}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              (Note: Requires enough connected players; max 1 imposter per 3 players).
+            </p>
           </div>
 
           {/* Imposter Hint Toggle */}

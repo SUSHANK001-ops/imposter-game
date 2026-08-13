@@ -31,6 +31,8 @@ app.prepare().then(async () => {
     const room = gameManager.getRoom(roomCode);
     if (!room) return;
 
+    const isEndedOrResults = room.status === 'ended' || room.currentGame?.phase === 'results';
+
     io.to(roomCode).emit('room:updated', {
       code: room.code,
       adminSocketId: room.adminSocketId,
@@ -48,7 +50,9 @@ app.prepare().then(async () => {
         turnOrderPlayerIds: room.currentGame.turnOrderPlayerIds,
         startedAt: room.currentGame.startedAt,
         winner: room.currentGame.winner,
-        winnerText: room.currentGame.winnerText
+        winnerText: room.currentGame.winnerText,
+        realWord: isEndedOrResults ? room.currentGame.realWord : undefined,
+        imposterPlayerIds: isEndedOrResults ? room.currentGame.imposterPlayerIds : undefined
       } : null,
       customWordsCount: room.customWords.length
     });
@@ -254,7 +258,7 @@ app.prepare().then(async () => {
     // Instant Vote Casting & Changing
     socket.on('game:vote', ({ roomCode, targetPlayerId, voterPlayerId }: { roomCode: string; targetPlayerId: string; voterPlayerId: string }, callback) => {
       try {
-        const { room, error } = gameManager.castVote(roomCode, socket.id, voterPlayerId, targetPlayerId);
+        const { room, error, allVoted } = gameManager.castVote(roomCode, socket.id, voterPlayerId, targetPlayerId);
         if (error || !room) {
           if (typeof callback === 'function') callback({ error });
           return;
@@ -263,7 +267,72 @@ app.prepare().then(async () => {
         // Instantly broadcast room update so everyone sees live vote updates
         broadcastRoomUpdate(room.code);
 
-        if (typeof callback === 'function') callback({ success: true });
+        if (allVoted) {
+          // Clear current timer and immediately evaluate results because everyone voted!
+          if (activeTimers.has(room.code)) {
+            clearInterval(activeTimers.get(room.code)!);
+            activeTimers.delete(room.code);
+          }
+
+          const { room: updatedRoom, gameContinued, announcementText } = gameManager.evaluateResults(room.code);
+          if (updatedRoom && updatedRoom.currentGame) {
+            if (gameContinued) {
+              // Imposter not caught yet! Broadcast round continuation toast & restart timer for discussion round
+              io.to(room.code).emit('game:toast', { 
+                type: 'warning', 
+                message: announcementText || 'Imposter not found! Starting next round...' 
+              });
+              startRoomTimer(room.code);
+              broadcastRoomUpdate(room.code);
+            } else {
+              // Game finished!
+              io.to(room.code).emit('game:results', {
+                winner: updatedRoom.currentGame.winner,
+                winnerText: updatedRoom.currentGame.winnerText,
+                realWord: updatedRoom.currentGame.realWord,
+                imposterPlayerIds: updatedRoom.currentGame.imposterPlayerIds,
+                votes: updatedRoom.currentGame.votes,
+                players: updatedRoom.players
+              });
+              broadcastRoomUpdate(room.code);
+            }
+          }
+        }
+
+        if (typeof callback === 'function') callback({ success: true, allVoted });
+      } catch (err: any) {
+        if (typeof callback === 'function') callback({ error: err.message });
+      }
+    });
+
+    // Imposter Word Guess Handler
+    socket.on('imposter:guessWord', ({ roomCode, playerId, guess }: { roomCode: string; playerId: string; guess: string }, callback) => {
+      try {
+        const { room, error, correct } = gameManager.guessWord(roomCode, playerId, guess);
+        if (error || !room) {
+          if (typeof callback === 'function') callback({ error });
+          return;
+        }
+
+        if (correct) {
+          if (activeTimers.has(room.code)) {
+            clearInterval(activeTimers.get(room.code)!);
+            activeTimers.delete(room.code);
+          }
+
+          io.to(room.code).emit('game:results', {
+            winner: room.currentGame!.winner,
+            winnerText: room.currentGame!.winnerText,
+            realWord: room.currentGame!.realWord,
+            imposterPlayerIds: room.currentGame!.imposterPlayerIds,
+            votes: room.currentGame!.votes,
+            players: room.players
+          });
+
+          broadcastRoomUpdate(room.code);
+        }
+
+        if (typeof callback === 'function') callback({ success: true, correct, error });
       } catch (err: any) {
         if (typeof callback === 'function') callback({ error: err.message });
       }

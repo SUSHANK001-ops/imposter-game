@@ -32,9 +32,21 @@ export default function RoomPage() {
   const [clueInput, setClueInput] = useState('');
   const [submittingClue, setSubmittingClue] = useState(false);
 
+  const [imposterGuessInput, setImposterGuessInput] = useState('');
+  const [submittingGuess, setSubmittingGuess] = useState(false);
+
   const [isWordBankOpen, setIsWordBankOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [toasts, setToasts] = useState<Array<{ id: string; type: 'info' | 'success' | 'warning' | 'error'; message: string }>>([]);
+
+  const addToast = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev.slice(-3), { id, type, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  };
 
   const socket = getSocket();
   const playerId = getPlayerId();
@@ -78,6 +90,11 @@ export default function RoomPage() {
       setSecretData(secretPayload);
       setSelectedVotePlayerId(null);
       setClueInput('');
+      addToast('🎮 Game Started! Check your secret role & word.', 'success');
+    });
+
+    socket.on('game:toast', ({ type, message }: { type: 'info' | 'success' | 'warning' | 'error'; message: string }) => {
+      addToast(message, type);
     });
 
     socket.on('game:timerTick', ({ phase, turnTimeLeft, currentTurnPlayerId }: any) => {
@@ -103,6 +120,11 @@ export default function RoomPage() {
           currentGame: { ...prev.currentGame, phase }
         };
       });
+      if (phase === 'voting') {
+        addToast('🗳️ Voting Phase Started! Select a suspect card to vote.', 'warning');
+      } else if (phase === 'discussing') {
+        addToast('🗣️ Turn Clue Round Started! Give your clue when ready.', 'info');
+      }
     });
 
     socket.on('game:results', (results: any) => {
@@ -120,6 +142,7 @@ export default function RoomPage() {
         },
         players: results.players || prev.players
       }));
+      addToast(`🏆 Game Over! ${results.winnerText}`, 'success');
 
       try {
         confetti({
@@ -135,6 +158,7 @@ export default function RoomPage() {
     return () => {
       socket.off('room:updated');
       socket.off('game:started');
+      socket.off('game:toast');
       socket.off('game:timerTick');
       socket.off('game:phaseChanged');
       socket.off('game:results');
@@ -158,12 +182,15 @@ export default function RoomPage() {
     e.preventDefault();
     if (!clueInput.trim()) return;
     setSubmittingClue(true);
+    setErrorMsg('');
 
     socket.emit('clue:submit', { roomCode, playerId, text: clueInput.trim() }, (res: any) => {
       setSubmittingClue(false);
       if (res?.error) {
         setErrorMsg(res.error);
+        addToast(`⚠️ ${res.error}`, 'error');
       } else {
+        addToast(`✅ Clue submitted: "${clueInput.trim()}"`, 'success');
         setClueInput('');
       }
     });
@@ -171,8 +198,36 @@ export default function RoomPage() {
 
   const handleInstantVote = (targetPlayerId: string) => {
     setSelectedVotePlayerId(targetPlayerId);
+    const targetPlayer = room?.players?.find((p: any) => p.playerId === targetPlayerId);
+    const targetName = targetPlayer ? targetPlayer.name : 'Player';
+
     socket.emit('game:vote', { roomCode, targetPlayerId, voterPlayerId: playerId }, (res: any) => {
-      if (res?.error) setErrorMsg(res.error);
+      if (res?.error) {
+        setErrorMsg(res.error);
+        addToast(`⚠️ ${res.error}`, 'error');
+      } else {
+        if (res?.allVoted) {
+          addToast(`⚡ All players voted! Ending voting round immediately...`, 'warning');
+        } else {
+          addToast(`🗳️ Vote recorded for ${targetName}!`, 'info');
+        }
+      }
+    });
+  };
+
+  const handleImposterGuessSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!imposterGuessInput.trim()) return;
+    setSubmittingGuess(true);
+
+    socket.emit('imposter:guessWord', { roomCode, playerId, guess: imposterGuessInput.trim() }, (res: any) => {
+      setSubmittingGuess(false);
+      if (res?.error) {
+        addToast(`❌ ${res.error}`, 'error');
+      } else if (res?.correct) {
+        addToast('🎉 CORRECT GUESS! Imposter Wins!', 'success');
+        setImposterGuessInput('');
+      }
     });
   };
 
@@ -202,7 +257,27 @@ export default function RoomPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col max-w-6xl mx-auto w-full p-4 sm:p-6 space-y-4 bg-slate-950">
+    <div className="min-h-screen flex flex-col max-w-6xl mx-auto w-full p-4 sm:p-6 space-y-4 bg-slate-950 relative">
+      {/* Toast Notification Container */}
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4">
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto p-3.5 rounded-xl border text-xs font-semibold shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4 duration-300 ${
+              toast.type === 'success'
+                ? 'bg-emerald-950 border-emerald-700 text-emerald-200'
+                : toast.type === 'warning'
+                ? 'bg-amber-950 border-amber-700 text-amber-200'
+                : toast.type === 'error'
+                ? 'bg-red-950 border-red-700 text-red-200'
+                : 'bg-blue-950 border-blue-700 text-blue-200'
+            }`}
+          >
+            <span>{toast.message}</span>
+          </div>
+        ))}
+      </div>
+
       {/* Modals */}
       <WordBankModal
         isOpen={isWordBankOpen}
@@ -335,7 +410,7 @@ export default function RoomPage() {
                 <button
                   onClick={handleStartGame}
                   disabled={connectedPlayers.length < 3}
-                  className="w-full sm:w-auto bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold px-8 py-3.5 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-95"
+                  className="w-full sm:w-auto bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold px-8 py-3.5 rounded-xl shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-95 shrink-0"
                 >
                   <Play className="w-5 h-5 fill-white" />
                   <span>Start Game Round</span>
@@ -351,34 +426,43 @@ export default function RoomPage() {
             
             {/* Secret Word & Role Card (Solid Navy/Red) */}
             <div className={`p-6 rounded-2xl border transition-all relative overflow-hidden ${
-              secretData.role === 'IMPOSTER'
+              isWordHidden 
+                ? 'bg-slate-900 border-slate-800'
+                : secretData.role === 'IMPOSTER'
                 ? 'bg-red-950 border-red-800'
                 : 'bg-blue-950 border-blue-800'
             }`}>
               <button
                 onClick={() => setIsWordHidden(!isWordHidden)}
-                className="absolute top-4 right-4 text-xs text-slate-400 hover:text-white bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors z-10"
+                className="absolute top-4 right-4 text-xs text-slate-300 hover:text-white bg-slate-900/90 border border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors z-10 shadow-md"
               >
                 {isWordHidden ? <Eye className="w-4 h-4 text-blue-400" /> : <EyeOff className="w-4 h-4 text-blue-400" />}
-                <span>{isWordHidden ? 'Peek Secret' : 'Hide Screen'}</span>
+                <span>{isWordHidden ? 'Peek Role & Secret' : 'Hide Screen'}</span>
               </button>
 
-              <div className="flex items-center gap-2 mb-3">
-                <span className={`text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full border ${
-                  secretData.role === 'IMPOSTER'
-                    ? 'bg-red-600 text-white border-red-500'
-                    : 'bg-blue-600 text-white border-blue-500'
-                }`}>
-                  YOUR ROLE: {secretData.role}
-                </span>
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                {isWordHidden ? (
+                  <span className="text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                    YOUR ROLE: ••••••••
+                  </span>
+                ) : (
+                  <span className={`text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full border ${
+                    secretData.role === 'IMPOSTER'
+                      ? 'bg-red-600 text-white border-red-500'
+                      : 'bg-blue-600 text-white border-blue-500'
+                  }`}>
+                    YOUR ROLE: {secretData.role}
+                  </span>
+                )}
+
                 <span className="text-xs bg-slate-900 text-blue-300 border border-blue-800 px-3 py-1 rounded-full">
-                  Category: <strong>{secretData.category}</strong>
+                  Category: <strong>{isWordHidden ? '••••••••' : secretData.category}</strong>
                 </span>
               </div>
 
               <div className="my-3 text-center py-2">
                 {isWordHidden ? (
-                  <div className="text-2xl font-mono font-bold text-slate-500 tracking-widest">
+                  <div className="text-2xl font-mono font-bold text-slate-500 tracking-widest py-2">
                     ••••••••••••••
                   </div>
                 ) : (
@@ -390,6 +474,31 @@ export default function RoomPage() {
                       <p className="text-xs text-amber-300 mt-2 italic bg-amber-950 border border-amber-800 p-2 rounded-lg inline-block">
                         {secretData.imposterHint}
                       </p>
+                    )}
+
+                    {/* Imposter Word Guess UI */}
+                    {secretData.role === 'IMPOSTER' && (
+                      <div className="mt-4 pt-4 border-t border-red-800/60 text-left max-w-md mx-auto">
+                        <label className="text-xs font-bold text-red-200 block mb-1.5 flex items-center gap-1.5">
+                          <span>🎯 Know the Secret Word? Guess to Win Instantly!</span>
+                        </label>
+                        <form onSubmit={handleImposterGuessSubmit} className="flex flex-col sm:flex-row gap-2">
+                          <input
+                            type="text"
+                            value={imposterGuessInput}
+                            onChange={(e) => setImposterGuessInput(e.target.value)}
+                            placeholder="Type exact secret word..."
+                            className="w-full sm:flex-1 bg-slate-900 border border-red-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
+                          />
+                          <button
+                            type="submit"
+                            disabled={submittingGuess || !imposterGuessInput.trim()}
+                            className="w-full sm:w-auto bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-md shrink-0"
+                          >
+                            {submittingGuess ? 'Guessing...' : 'Guess & Win'}
+                          </button>
+                        </form>
+                      </div>
                     )}
                   </div>
                 )}
@@ -412,19 +521,19 @@ export default function RoomPage() {
                 </div>
 
                 {isMyTurn ? (
-                  <form onSubmit={handleSubmitClue} className="flex gap-2">
+                  <form onSubmit={handleSubmitClue} className="flex flex-col sm:flex-row gap-2 w-full">
                     <input
                       type="text"
                       value={clueInput}
                       onChange={(e) => setClueInput(e.target.value)}
-                      placeholder="Type a 1-word or short clue describing the secret word..."
-                      className="flex-1 bg-slate-900 border border-blue-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
+                      placeholder="Type a 1-word clue (must be unique)..."
+                      className="w-full sm:flex-1 bg-slate-900 border border-blue-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
                       autoFocus
                     />
                     <button
                       type="submit"
                       disabled={submittingClue || !clueInput.trim()}
-                      className="bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold px-5 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg shrink-0"
+                      className="w-full sm:w-auto bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shrink-0"
                     >
                       <Send className="w-4 h-4" />
                       <span>Submit Word</span>
@@ -496,9 +605,16 @@ export default function RoomPage() {
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
                 {room.currentGame.winnerText}
               </h2>
-              <div className="mt-4 inline-flex items-center gap-3 bg-slate-900 border border-blue-800 px-4 py-2 rounded-xl text-xs">
-                <span className="text-slate-400">Secret Word was:</span>
-                <strong className="text-blue-300 font-bold text-sm">{room.currentGame.realWord}</strong>
+              
+              {/* Prominent Secret Word Banner */}
+              <div className="mt-5 p-4 bg-slate-900/90 border-2 border-blue-500/70 rounded-2xl flex flex-col items-center justify-center gap-1 shadow-inner">
+                <span className="text-xs uppercase tracking-widest text-slate-400 font-bold">The Secret Word Was:</span>
+                <span className="text-3xl sm:text-4xl font-extrabold text-amber-300 tracking-wide drop-shadow-md">
+                  {room.currentGame.realWord || secretData?.word || 'Unknown'}
+                </span>
+                {room.currentGame.category && (
+                  <span className="text-xs text-blue-300 font-medium">Category: {room.currentGame.category}</span>
+                )}
               </div>
             </div>
 
