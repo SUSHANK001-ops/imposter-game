@@ -48,6 +48,7 @@ app.prepare().then(async () => {
         currentTurnPlayerId: room.currentGame.currentTurnPlayerId,
         turnTimeLeft: room.currentGame.turnTimeLeft,
         turnOrderPlayerIds: room.currentGame.turnOrderPlayerIds,
+        eliminatedPlayerIds: room.currentGame.eliminatedPlayerIds || [],
         startedAt: room.currentGame.startedAt,
         winner: room.currentGame.winner,
         winnerText: room.currentGame.winnerText,

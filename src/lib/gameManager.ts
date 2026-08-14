@@ -23,6 +23,7 @@ export interface RoomState {
     imposterWord: string;
     imposterSocketIds: string[];
     imposterPlayerIds: string[];
+    eliminatedPlayerIds: string[];
     phase: 'discussing' | 'voting' | 'results';
     votes: IVote[];
     clues: IClue[];
@@ -634,6 +635,7 @@ class GameManager {
             imposterWord: room.currentGame.imposterWord,
             imposterSocketIds: room.currentGame.imposterSocketIds,
             imposterPlayerIds: room.currentGame.imposterPlayerIds,
+            eliminatedPlayerIds: room.currentGame.eliminatedPlayerIds,
             phase: room.currentGame.phase,
             votes: room.currentGame.votes,
             clues: room.currentGame.clues,
