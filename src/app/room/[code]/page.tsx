@@ -541,7 +541,8 @@ export default function RoomPage() {
             {/* PLAYER CARDS GRID WITH SUBMITTED CLUES */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {room.players.map((p: any) => {
-                const playerClue = room.currentGame?.clues?.find((c: any) => c.playerId === p.playerId);
+                const playerClues = room.currentGame?.clues?.filter((c: any) => c.playerId === p.playerId) || [];
+                const playerClue = playerClues.length > 0 ? playerClues[playerClues.length - 1] : undefined;
                 const voteCount = room.currentGame?.votes?.filter((v: any) => v.targetPlayerId === p.playerId).length || 0;
                 const isTurnPlayer = room.currentGame?.phase === 'discussing' && room.currentGame?.currentTurnPlayerId === p.playerId;
                 const isEliminated = room.currentGame?.eliminatedPlayerIds?.includes(p.playerId);

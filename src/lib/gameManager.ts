@@ -284,7 +284,8 @@ class GameManager {
     const imposterWord = room.settings.showImposterHint ? decoyWord : "???";
     const imposterHint = room.settings.showImposterHint ? `Hint: Decoy word is "${decoyWord}"` : undefined;
 
-    const turnOrderPlayerIds = connectedPlayers.map(p => p.playerId);
+    // Randomize turn order when game starts (not order of joining)
+    const turnOrderPlayerIds = [...connectedPlayers.map(p => p.playerId)].sort(() => 0.5 - Math.random());
     const currentTurnPlayerId = turnOrderPlayerIds[0] || "";
 
     room.status = 'playing';
@@ -487,12 +488,13 @@ class GameManager {
 
     // Check voting outcome
     if (maxVotes === 0 || topTargets.length > 1) {
-      // Tie vote or no votes -> Imposter is NOT voted out! Continue to next clue round!
+      // Tie vote or no votes -> Imposter is NOT voted out! Shuffle remaining players for next round!
+      const shuffledTurnOrder = [...activePlayerIds].sort(() => 0.5 - Math.random());
       game.phase = 'discussing';
       game.votes = []; // Reset votes for next round
       game.turnTimeLeft = room.settings.turnTime || 20;
-      game.turnOrderPlayerIds = activePlayerIds;
-      game.currentTurnPlayerId = activePlayerIds[0] || "";
+      game.turnOrderPlayerIds = shuffledTurnOrder;
+      game.currentTurnPlayerId = shuffledTurnOrder[0] || "";
       this.saveRoomToDb(room);
       return { 
         room, 
@@ -547,13 +549,14 @@ class GameManager {
         this.saveRoomToDb(room);
         return { room, gameContinued: false };
       } else {
-        // Game continues to next round with remaining active players!
+        // Game continues to next round with remaining active players! Shuffle turn order!
         const remainingPlayerIds = remainingActive.map(p => p.playerId);
+        const shuffledRemainingTurnOrder = [...remainingPlayerIds].sort(() => 0.5 - Math.random());
         game.phase = 'discussing';
         game.votes = []; // Reset votes for next round
         game.turnTimeLeft = room.settings.turnTime || 20;
-        game.turnOrderPlayerIds = remainingPlayerIds;
-        game.currentTurnPlayerId = remainingPlayerIds[0] || "";
+        game.turnOrderPlayerIds = shuffledRemainingTurnOrder;
+        game.currentTurnPlayerId = shuffledRemainingTurnOrder[0] || "";
 
         this.saveRoomToDb(room);
         return {
