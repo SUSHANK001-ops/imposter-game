@@ -293,6 +293,7 @@ class GameManager {
       imposterWord,
       imposterSocketIds,
       imposterPlayerIds,
+      eliminatedPlayerIds: [],
       phase: 'discussing',
       votes: [],
       clues: [],
@@ -321,6 +322,28 @@ class GameManager {
     const cleanText = text.trim();
     if (!cleanText) return { error: 'Clue word cannot be empty' };
 
+    const player = room.players.find(p => p.playerId === playerId);
+    const playerName = player ? player.name : 'Player';
+
+    // If the Imposter types the exact secret word in the normal clue box -> Imposter Wins!
+    const isImposter = game.imposterPlayerIds.includes(playerId);
+    if (isImposter && cleanText.toLowerCase() === game.realWord.trim().toLowerCase()) {
+      game.phase = 'results';
+      game.endedAt = new Date();
+      game.winner = 'imposter';
+      game.winnerText = `Imposter Wins! ${playerName} guessed the secret word "${game.realWord}" in the clue box!`;
+      room.status = 'ended';
+
+      room.players.forEach(p => {
+        if (game.imposterPlayerIds.includes(p.playerId)) {
+          p.score += 20;
+        }
+      });
+
+      this.saveRoomToDb(room);
+      return { room, phaseChanged: true };
+    }
+
     // Prevent duplicate clue words (case-insensitive check against non-expired clues)
     const normalizedNew = cleanText.toLowerCase();
     const isDuplicate = game.clues.some(c => {
@@ -331,9 +354,6 @@ class GameManager {
     if (isDuplicate) {
       return { error: `The clue word "${cleanText}" has already been used! Please choose a unique word.` };
     }
-
-    const player = room.players.find(p => p.playerId === playerId);
-    const playerName = player ? player.name : 'Player';
 
     game.clues.push({
       playerId,
@@ -352,6 +372,7 @@ class GameManager {
       game.turnTimeLeft = room.settings.turnTime || 20;
     } else {
       game.phase = 'voting';
+      game.votes = []; // Always reset votes when transitioning to voting phase
       game.currentTurnPlayerId = "";
       game.turnTimeLeft = 60;
       phaseChanged = true;
@@ -386,6 +407,7 @@ class GameManager {
       game.turnTimeLeft = room.settings.turnTime || 20;
     } else {
       game.phase = 'voting';
+      game.votes = []; // Always reset votes when transitioning to voting phase
       game.currentTurnPlayerId = "";
       game.turnTimeLeft = 60;
       phaseChanged = true;
@@ -400,10 +422,18 @@ class GameManager {
     if (!room || !room.currentGame) return { error: 'Game session not active' };
     if (room.currentGame.phase !== 'voting') return { error: 'Voting is not open' };
 
+    const game = room.currentGame;
+    if (game.eliminatedPlayerIds?.includes(voterPlayerId)) {
+      return { error: 'Eliminated players cannot vote' };
+    }
+    if (game.eliminatedPlayerIds?.includes(targetPlayerId)) {
+      return { error: 'Cannot vote for an eliminated player' };
+    }
+
     const targetPlayer = room.players.find(p => p.playerId === targetPlayerId);
     if (!targetPlayer) return { error: 'Target player not found' };
 
-    const existingVoteIndex = room.currentGame.votes.findIndex(v => v.voterPlayerId === voterPlayerId);
+    const existingVoteIndex = game.votes.findIndex(v => v.voterPlayerId === voterPlayerId);
     const voteData: IVote = {
       voterSocketId,
       voterPlayerId,
@@ -412,14 +442,14 @@ class GameManager {
     };
 
     if (existingVoteIndex !== -1) {
-      room.currentGame.votes[existingVoteIndex] = voteData;
+      game.votes[existingVoteIndex] = voteData;
     } else {
-      room.currentGame.votes.push(voteData);
+      game.votes.push(voteData);
     }
 
-    // Check if all connected active players have voted
-    const activeConnectedPlayers = room.players.filter(p => p.isConnected);
-    const allVoted = room.currentGame.votes.length >= activeConnectedPlayers.length;
+    // Check if all active non-eliminated connected players have voted
+    const activeConnectedPlayers = room.players.filter(p => p.isConnected && !game.eliminatedPlayerIds?.includes(p.playerId));
+    const allVoted = game.votes.length >= activeConnectedPlayers.length;
 
     this.saveRoomToDb(room);
     return { room, allVoted };
@@ -430,6 +460,7 @@ class GameManager {
     if (!room || !room.currentGame) return { error: 'No active game session' };
 
     const game = room.currentGame;
+    if (!game.eliminatedPlayerIds) game.eliminatedPlayerIds = [];
 
     const voteTally: Map<string, number> = new Map();
     game.votes.forEach(v => {
@@ -449,18 +480,23 @@ class GameManager {
       }
     });
 
+    const activePlayerIds = room.players
+      .filter(p => p.isConnected && !game.eliminatedPlayerIds.includes(p.playerId))
+      .map(p => p.playerId);
+
     // Check voting outcome
     if (maxVotes === 0 || topTargets.length > 1) {
       // Tie vote or no votes -> Imposter is NOT voted out! Continue to next clue round!
       game.phase = 'discussing';
-      game.votes = [];
+      game.votes = []; // Reset votes for next round
       game.turnTimeLeft = room.settings.turnTime || 20;
-      game.currentTurnPlayerId = game.turnOrderPlayerIds[0] || "";
+      game.turnOrderPlayerIds = activePlayerIds;
+      game.currentTurnPlayerId = activePlayerIds[0] || "";
       this.saveRoomToDb(room);
       return { 
         room, 
         gameContinued: true, 
-        announcementText: "Tie Vote! No player was eliminated. Imposter is still among us — starting Round 2!" 
+        announcementText: "Tie Vote! No player was eliminated. Imposter is still among us — starting Next Round!" 
       };
     }
 
@@ -486,20 +522,45 @@ class GameManager {
       this.saveRoomToDb(room);
       return { room, gameContinued: false };
     } else {
-      // Voted out player is INNOCENT! Imposter is NOT voted out yet!
-      // Check if all crew members are eliminated or if game can continue to next round
-      // To keep gameplay fluid, start another turn/discussion round so players can give fresh clues and catch the imposter!
-      game.phase = 'discussing';
-      game.votes = [];
-      game.turnTimeLeft = room.settings.turnTime || 20;
-      game.currentTurnPlayerId = game.turnOrderPlayerIds[0] || "";
+      // Civilian voted out! Eliminate civilian
+      game.eliminatedPlayerIds.push(votedOutPlayerId);
 
-      this.saveRoomToDb(room);
-      return {
-        room,
-        gameContinued: true,
-        announcementText: `Incorrect! ${votedOutName} was NOT the Imposter! The Imposter is still among us — starting Next Clue Round!`
-      };
+      const remainingActive = room.players.filter(p => p.isConnected && !game.eliminatedPlayerIds.includes(p.playerId));
+      const remainingCrew = remainingActive.filter(p => !game.imposterPlayerIds.includes(p.playerId));
+      const remainingImposters = remainingActive.filter(p => game.imposterPlayerIds.includes(p.playerId));
+
+      if (remainingCrew.length <= remainingImposters.length) {
+        // Imposters equal or outnumber remaining crew -> Imposters Win!
+        game.phase = 'results';
+        game.endedAt = new Date();
+        game.winner = 'imposter';
+        game.winnerText = `Imposter Wins! Civilian ${votedOutName} was eliminated. Imposters equal or outnumber crew!`;
+        room.status = 'ended';
+
+        room.players.forEach(p => {
+          if (game.imposterPlayerIds.includes(p.playerId)) {
+            p.score += 15;
+          }
+        });
+
+        this.saveRoomToDb(room);
+        return { room, gameContinued: false };
+      } else {
+        // Game continues to next round with remaining active players!
+        const remainingPlayerIds = remainingActive.map(p => p.playerId);
+        game.phase = 'discussing';
+        game.votes = []; // Reset votes for next round
+        game.turnTimeLeft = room.settings.turnTime || 20;
+        game.turnOrderPlayerIds = remainingPlayerIds;
+        game.currentTurnPlayerId = remainingPlayerIds[0] || "";
+
+        this.saveRoomToDb(room);
+        return {
+          room,
+          gameContinued: true,
+          announcementText: `Civilian Voted Out! ${votedOutName} was innocent and eliminated. ${remainingCrew.length} crew remaining — starting Next Clue Round!`
+        };
+      }
     }
   }
 

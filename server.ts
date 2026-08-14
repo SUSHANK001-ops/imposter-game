@@ -243,9 +243,25 @@ app.prepare().then(async () => {
           return;
         }
 
+        if (room.status === 'ended' && room.currentGame) {
+          if (activeTimers.has(room.code)) {
+            clearInterval(activeTimers.get(room.code)!);
+            activeTimers.delete(room.code);
+          }
+
+          io.to(room.code).emit('game:results', {
+            winner: room.currentGame.winner,
+            winnerText: room.currentGame.winnerText,
+            realWord: room.currentGame.realWord,
+            imposterPlayerIds: room.currentGame.imposterPlayerIds,
+            votes: room.currentGame.votes,
+            players: room.players
+          });
+        }
+
         broadcastRoomUpdate(room.code);
 
-        if (phaseChanged) {
+        if (phaseChanged && room.status === 'playing') {
           io.to(room.code).emit('game:phaseChanged', { phase: 'voting', timer: 60 });
         }
 

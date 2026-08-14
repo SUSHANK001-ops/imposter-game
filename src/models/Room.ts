@@ -30,6 +30,7 @@ export interface IGameSession {
   imposterWord: string; // "???" or decoy word / hint
   imposterSocketIds: string[];
   imposterPlayerIds: string[];
+  eliminatedPlayerIds: string[];
   phase: 'discussing' | 'voting' | 'results';
   votes: IVote[];
   clues: IClue[];
@@ -93,6 +94,7 @@ const GameSessionSchema = new Schema<IGameSession>({
   imposterWord: { type: String, required: true, default: "???" },
   imposterSocketIds: [{ type: String }],
   imposterPlayerIds: [{ type: String }],
+  eliminatedPlayerIds: [{ type: String }],
   phase: { type: String, enum: ['discussing', 'voting', 'results'], default: 'discussing' },
   votes: [VoteSchema],
   clues: [ClueSchema],

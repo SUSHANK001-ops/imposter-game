@@ -11,6 +11,7 @@ interface PlayerCardProps {
   isVotingPhase?: boolean;
   isTurnPhase?: boolean;
   isTurnPlayer?: boolean;
+  isEliminated?: boolean;
   turnTimeLeft?: number;
   clue?: IClue;
   voteCount?: number;
@@ -27,6 +28,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   isVotingPhase,
   isTurnPhase,
   isTurnPlayer,
+  isEliminated,
   turnTimeLeft,
   clue,
   voteCount = 0,
@@ -54,12 +56,14 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
   return (
     <div
       onClick={() => {
-        if (isVotingPhase && !isCurrentPlayer && onSelectVote) {
+        if (isVotingPhase && !isCurrentPlayer && !isEliminated && onSelectVote) {
           onSelectVote(player.playerId);
         }
       }}
       className={`relative glass-card rounded-2xl p-4 transition-all duration-200 flex flex-col justify-between overflow-hidden group ${
-        isTurnPlayer
+        isEliminated
+          ? 'border border-slate-800 bg-slate-950/80 opacity-60 grayscale-[30%]'
+          : isTurnPlayer
           ? 'border-2 border-red-500 bg-red-950/20 shadow-xl neon-border-red transform scale-[1.01]'
           : isSelectedForVote
           ? 'border-2 border-red-500 bg-red-950/40 neon-border-red transform scale-[1.02]'
@@ -71,6 +75,11 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
       {/* Top Badges */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1.5 flex-wrap">
+          {isEliminated && (
+            <span className="text-[10px] font-extrabold uppercase bg-red-950 text-red-400 border border-red-800 px-2.5 py-0.5 rounded-full">
+              ☠️ ELIMINATED
+            </span>
+          )}
           {player.isAdmin && (
             <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-blue-600/30 text-blue-200 border border-blue-400/40 px-2 py-0.5 rounded-full">
               <Crown className="w-3 h-3 text-amber-400" /> Host
@@ -81,7 +90,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
               You
             </span>
           )}
-          {isTurnPlayer && (
+          {isTurnPlayer && !isEliminated && (
             <span className="flex items-center gap-1 text-[10px] font-bold uppercase bg-red-600 text-white px-2.5 py-0.5 rounded-full animate-pulse">
               <Clock className="w-3 h-3" /> Giving Clue ({turnTimeLeft}s)
             </span>
@@ -131,7 +140,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
         <div className="flex-1 min-w-0">
           <span className="text-[10px] text-slate-400 block font-semibold uppercase tracking-wider">Submitted Word/Clue:</span>
           <p className="text-xs font-bold text-white truncate">
-            {clue ? `"${clue.text}"` : isTurnPlayer ? 'Typing word...' : 'Waiting for turn...'}
+            {clue ? `"${clue.text}"` : isEliminated ? 'Eliminated' : isTurnPlayer ? 'Typing word...' : 'Waiting for turn...'}
           </p>
         </div>
       </div>
@@ -144,7 +153,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             <span>Votes: <strong className="text-white font-bold">{voteCount}</strong></span>
           </div>
 
-          {!isCurrentPlayer ? (
+          {!isCurrentPlayer && !isEliminated ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -158,9 +167,13 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             >
               {isSelectedForVote ? '✓ Your Vote' : 'Vote Suspect'}
             </button>
+          ) : isEliminated ? (
+            <span className="text-[10px] text-red-400 italic">Eliminated</span>
           ) : (
             <span className="text-[10px] text-slate-500 italic">Cannot vote for yourself</span>
           )}
+        </div>
+      )}
         </div>
       )}
     </div>

@@ -190,7 +190,7 @@ export default function RoomPage() {
         setErrorMsg(res.error);
         addToast(`⚠️ ${res.error}`, 'error');
       } else {
-        addToast(`✅ Clue submitted: "${clueInput.trim()}"`, 'success');
+        addToast(`✅ Submitted: "${clueInput.trim()}"`, 'success');
         setClueInput('');
       }
     });
@@ -475,31 +475,6 @@ export default function RoomPage() {
                         {secretData.imposterHint}
                       </p>
                     )}
-
-                    {/* Imposter Word Guess UI */}
-                    {secretData.role === 'IMPOSTER' && (
-                      <div className="mt-4 pt-4 border-t border-red-800/60 text-left max-w-md mx-auto">
-                        <label className="text-xs font-bold text-red-200 block mb-1.5 flex items-center gap-1.5">
-                          <span>🎯 Know the Secret Word? Guess to Win Instantly!</span>
-                        </label>
-                        <form onSubmit={handleImposterGuessSubmit} className="flex flex-col sm:flex-row gap-2">
-                          <input
-                            type="text"
-                            value={imposterGuessInput}
-                            onChange={(e) => setImposterGuessInput(e.target.value)}
-                            placeholder="Type exact secret word..."
-                            className="w-full sm:flex-1 bg-slate-900 border border-red-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
-                          />
-                          <button
-                            type="submit"
-                            disabled={submittingGuess || !imposterGuessInput.trim()}
-                            className="w-full sm:w-auto bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-md shrink-0"
-                          >
-                            {submittingGuess ? 'Guessing...' : 'Guess & Win'}
-                          </button>
-                        </form>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -526,7 +501,7 @@ export default function RoomPage() {
                       type="text"
                       value={clueInput}
                       onChange={(e) => setClueInput(e.target.value)}
-                      placeholder="Type a 1-word clue (must be unique)..."
+                      placeholder={secretData.role === 'IMPOSTER' ? 'Type 1-word clue (or type the secret word to win)...' : 'Type a 1-word clue (must be unique)...'}
                       className="w-full sm:flex-1 bg-slate-900 border border-blue-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
                       autoFocus
                     />
@@ -569,6 +544,7 @@ export default function RoomPage() {
                 const playerClue = room.currentGame?.clues?.find((c: any) => c.playerId === p.playerId);
                 const voteCount = room.currentGame?.votes?.filter((v: any) => v.targetPlayerId === p.playerId).length || 0;
                 const isTurnPlayer = room.currentGame?.phase === 'discussing' && room.currentGame?.currentTurnPlayerId === p.playerId;
+                const isEliminated = room.currentGame?.eliminatedPlayerIds?.includes(p.playerId);
 
                 return (
                   <PlayerCard
@@ -579,6 +555,7 @@ export default function RoomPage() {
                     isVotingPhase={room.currentGame?.phase === 'voting'}
                     isTurnPhase={room.currentGame?.phase === 'discussing'}
                     isTurnPlayer={isTurnPlayer}
+                    isEliminated={isEliminated}
                     turnTimeLeft={room.currentGame?.turnTimeLeft}
                     clue={playerClue}
                     voteCount={voteCount}
